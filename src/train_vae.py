@@ -21,8 +21,8 @@ import os
 from datetime import datetime
 from tqdm import tqdm
 
-from src.config import get_config, get_argparser
-from src.utils import get_cifar10_loaders, save_image_grid, set_seed
+from config import get_config, get_argparser
+from utils import get_cifar10_loaders, save_image_grid, set_seed
 
 
 def train_vae(config):
