@@ -23,7 +23,7 @@ if not os.path.exists(loss_file):
     exit()
 
 # Load data
-df = pd.read_csv(loss_file)
+df = pd.read_json(loss_file)
 
 # Create figure
 plt.figure(figsize=(12, 5))
