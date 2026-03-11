@@ -70,7 +70,7 @@ def load_best_vae_model(run_dir, config):
 
 
 @torch.no_grad()
-def generate_vae_samples(model, config, n_samples, batch_size=32):
+def generate_vae_samples(model, config, n_samples, batch_size=16):
     """Generate samples from VAE decoder"""
     samples = []
     n_batches = (n_samples + batch_size - 1) // batch_size
@@ -89,7 +89,7 @@ def get_real_images(config, n_samples):
     """Load real CIFAR-10 test images"""
     print(f"  Loading {n_samples} real CIFAR-10 images...")
     _, test_loader = get_cifar10_loaders(
-        batch_size=32, 
+        batch_size=16, 
         normalize_to_minus_one=False,
         num_workers=config.NUM_WORKERS,
         data_dir=config.DATA_DIR
@@ -154,12 +154,12 @@ def main():
     
     # Load real images
     print("\n🖼️  Loading real CIFAR-10 test images...")
-    real_images = get_real_images(config, n_samples=5000)
+    real_images = get_real_images(config, n_samples=2000)
     print(f"  ✅ Loaded {len(real_images)} real images")
     
     # Generate samples
     print("\n🎨 Generating VAE samples...")
-    vae_samples = generate_vae_samples(vae_model, config, n_samples=2000)
+    vae_samples = generate_vae_samples(vae_model, config, n_samples=500)
     print(f"  ✅ Generated {len(vae_samples)} samples")
     
     # Compute metrics
