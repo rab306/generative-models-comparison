@@ -24,9 +24,12 @@ except ImportError:
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config import VAE_LATENT_DIM, DEVICE
+from config import get_config
 from models import VAE
 from utils import get_cifar10_loaders
+
+# Initialize config
+config = get_config()
 
 
 def find_latest_vae_run():
@@ -37,14 +40,14 @@ def find_latest_vae_run():
     return max(runs, key=os.path.getctime)
 
 
-def load_best_vae_model(run_dir):
+def load_best_vae_model(run_dir, config):
     """Load best VAE model from checkpoint"""
-    model = VAE(latent_dim=VAE_LATENT_DIM).to(DEVICE)
+    model = VAE(latent_dim=config.VAE_LATENT_DIM).to(config.DEVICE)
     
     # Try to load best_model.pth first
     best_path = os.path.join(run_dir, 'best_model.pth')
     if os.path.exists(best_path):
-        checkpoint = torch.load(best_path, map_location=DEVICE)
+        checkpoint = torch.load(best_path, map_location=config.DEVICE)
         model.load_state_dict(checkpoint['model_state_dict'])
         epoch = checkpoint.get('epoch', '?')
         print(f"  ✅ Loaded VAE from epoch {epoch}")
@@ -57,7 +60,7 @@ def load_best_vae_model(run_dir):
             raise Exception(f"No checkpoints found in {run_dir}")
         
         latest = max(checkpoints, key=os.path.getctime)
-        checkpoint = torch.load(latest, map_location=DEVICE)
+        checkpoint = torch.load(latest, map_location=config.DEVICE)
         model.load_state_dict(checkpoint['model_state_dict'])
         epoch = checkpoint.get('epoch', '?')
         print(f"  ✅ Loaded VAE checkpoint from epoch {epoch}")
@@ -67,14 +70,14 @@ def load_best_vae_model(run_dir):
 
 
 @torch.no_grad()
-def generate_vae_samples(model, n_samples=5000, batch_size=64):
+def generate_vae_samples(model, config, n_samples=5000, batch_size=64):
     """Generate samples from VAE decoder"""
     samples = []
     n_batches = (n_samples + batch_size - 1) // batch_size
     
     print(f"  Generating {n_samples} VAE samples...")
     for _ in tqdm(range(n_batches), desc="  ", leave=False):
-        z = torch.randn(batch_size, VAE_LATENT_DIM).to(DEVICE)
+        z = torch.randn(batch_size, config.VAE_LATENT_DIM).to(config.DEVICE)
         batch_samples = model.decode(z)
         samples.append(batch_samples.cpu())
     
@@ -142,7 +145,7 @@ def main():
     print(f"  Run: {vae_run_dir}")
     
     print("\n🔄 Loading VAE model...")
-    vae_model = load_best_vae_model(vae_run_dir)
+    vae_model = load_best_vae_model(vae_run_dir, config)
     
     # Load real images
     print("\n🖼️  Loading real CIFAR-10 test images...")
@@ -151,7 +154,7 @@ def main():
     
     # Generate samples
     print("\n🎨 Generating VAE samples...")
-    vae_samples = generate_vae_samples(vae_model, n_samples=5000)
+    vae_samples = generate_vae_samples(vae_model, config, n_samples=5000)
     print(f"  ✅ Generated {len(vae_samples)} samples")
     
     # Compute metrics
