@@ -1,0 +1,19 @@
+# Core Deep Learning
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Data & Numerical Operations
+numpy>=1.24.0
+pandas>=2.0.0
+pillow>=9.5.0
+
+# Visualization
+matplotlib>=3.7.0
+tqdm>=4.65.0
+
+# Metrics
+torchmetrics>=1.0.0
+scipy>=1.10.0
+
+tensorboard>=2.12.0
