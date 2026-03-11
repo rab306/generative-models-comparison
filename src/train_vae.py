@@ -19,6 +19,11 @@ def train_vae(config):
     torch.cuda.manual_seed_all(config.RANDOM_SEED)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+    # DEBUG: Test if RNG is deterministic
+    test_tensor = torch.randn(5, 5)
+    print(f"🔍 DEBUG - Test tensor first 5 values: {test_tensor[0, :5].tolist()}")
+    print(f"🔍 DEBUG - These should be IDENTICAL across runs")
     
     print(f"\n{'='*60}")
     print(f"🚀 Starting VAE Training on {config.DEVICE}")
@@ -68,6 +73,10 @@ def train_vae(config):
     # 4. Fixed Noise for Consistent Sampling
     # This will now be deterministic because seeds were set at the start
     fixed_noise = torch.randn(config.NUM_VISUALIZE_SAMPLES, config.VAE_LATENT_DIM, device=config.DEVICE)
+
+    # DEBUG: Print fixed_noise first values
+    print(f"🔍 DEBUG - Fixed noise first 5 values: {fixed_noise[0, :5].cpu().tolist()}")
+    print(f"🔍 DEBUG - Fixed noise shape: {fixed_noise.shape}")
     
     # 5. Training Tracking
     best_val_loss = float('inf')
