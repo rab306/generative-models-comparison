@@ -44,7 +44,7 @@ def train_vae(config):
     print(f"{'='*60}\n")
     
     # Import models inside function to avoid circular imports
-    from src.models import VAE, vae_loss_function
+    from models import VAE, vae_loss_function
     
     # 1. Setup Directories
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
