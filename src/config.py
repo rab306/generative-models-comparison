@@ -14,7 +14,7 @@ class Config:
     
     # TRAINING COMMON
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    NUM_WORKERS = 2  # ✅ Works on CPU and GPU
+    NUM_WORKERS = 0
     
     # Batch sizes
     BATCH_SIZE_VAE = 64
