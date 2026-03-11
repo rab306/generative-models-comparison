@@ -68,8 +68,8 @@ def train_vae(config):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-# Now create noise directly on GPU
-fixed_noise = torch.randn(config.NUM_VISUALIZE_SAMPLES, config.VAE_LATENT_DIM, device=config.DEVICE)
+    # Now create noise directly on GPU
+    fixed_noise = torch.randn(config.NUM_VISUALIZE_SAMPLES, config.VAE_LATENT_DIM, device=config.DEVICE)
     
     # 5. Training Tracking
     best_val_loss = float('inf')
