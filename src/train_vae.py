@@ -19,12 +19,10 @@ def train_vae(config):
     torch.cuda.manual_seed_all(config.RANDOM_SEED)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-
-    # DEBUG: Test if RNG is deterministic
-    test_tensor = torch.randn(5, 5)
-    print(f"🔍 DEBUG - Test tensor first 5 values: {test_tensor[0, :5].tolist()}")
-    print(f"🔍 DEBUG - These should be IDENTICAL across runs")
     
+    # 4. Fixed Noise for Consistent Sampling
+    fixed_noise = torch.randn(config.NUM_VISUALIZE_SAMPLES, config.VAE_LATENT_DIM, device=config.DEVICE)
+
     print(f"\n{'='*60}")
     print(f"🚀 Starting VAE Training on {config.DEVICE}")
     print(f"{'='*60}")
@@ -69,14 +67,6 @@ def train_vae(config):
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"   Total Parameters:   {total_params:,}")
     print(f"   Trainable Params:   {trainable_params:,}\n")
-    
-    # 4. Fixed Noise for Consistent Sampling
-    # This will now be deterministic because seeds were set at the start
-    fixed_noise = torch.randn(config.NUM_VISUALIZE_SAMPLES, config.VAE_LATENT_DIM, device=config.DEVICE)
-
-    # DEBUG: Print fixed_noise first values
-    print(f"🔍 DEBUG - Fixed noise first 5 values: {fixed_noise[0, :5].cpu().tolist()}")
-    print(f"🔍 DEBUG - Fixed noise shape: {fixed_noise.shape}")
     
     # 5. Training Tracking
     best_val_loss = float('inf')
@@ -153,7 +143,7 @@ def train_vae(config):
                 save_image_grid(samples, sample_filename, nrow=int(config.NUM_VISUALIZE_SAMPLES**0.5))
                 print(f"   📸 Samples saved to: {sample_filename}")
         
-        # Save Checkpoint
+        # Save checkpoint every SAVE_INTERVAL
         if epoch % config.SAVE_INTERVAL == 0 or epoch == config.EPOCHS_VAE:
             checkpoint_path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch:03d}.pth")
             torch.save({
@@ -164,18 +154,17 @@ def train_vae(config):
                 'val_loss': val_loss_avg,
                 'config': config.to_dict(),
             }, checkpoint_path)
-            
-            if val_loss_avg < best_val_loss:
-                best_val_loss = val_loss_avg
-                best_path = os.path.join(run_dir, "best_model.pth")
-                torch.save({
-                    'epoch': epoch,
-                    'model_state_dict': model.state_dict(),
-                    'val_loss': val_loss_avg,
-                }, best_path)
-                print(f"   ⭐ New best model! (Val Loss: {val_loss_avg:.3f})")
-        
-        print("")
+
+        # Check for best model EVERY epoch (independent of SAVE_INTERVAL)
+        if val_loss_avg < best_val_loss:
+            best_val_loss = val_loss_avg
+            best_path = os.path.join(run_dir, "best_model.pth")
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'val_loss': val_loss_avg,
+            }, best_path)
+            print(f"   ⭐ New best model! (Val Loss: {val_loss_avg:.3f})")
     
     print(f"\n{'='*60}")
     print(f"✅ Training Complete!")
