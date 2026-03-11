@@ -167,12 +167,34 @@ def train_vae(config):
     print(f"   Best Val Loss:     {best_val_loss:.3f}")
     print(f"{'='*60}\n")
     
-    # Save loss history
+    # Save loss history - MODIFY THIS SECTION
+    import csv
     import json
-    with open(os.path.join(run_dir, "loss_history.json"), 'w') as f:
-        json.dump({'train_losses': train_losses, 'val_losses': val_losses}, f, indent=2)
-    
-    return model, run_dir, train_losses, val_losses
+
+    # Save as CSV for easy plotting (with all components)
+    csv_file = os.path.join(run_dir, "loss_history.csv")
+    with open(csv_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['epoch', 'train_loss', 'recon_loss', 'kl_loss', 'val_loss'])
+        for epoch in range(len(train_losses)):
+            writer.writerow([
+                epoch + 1, 
+                train_losses[epoch], 
+                recon_losses[epoch],
+                kl_losses[epoch],
+                val_losses[epoch]
+            ])
+
+    # Also save as JSON for backup
+    json_file = os.path.join(run_dir, "loss_history.json")
+    with open(json_file, 'w') as f:
+        json.dump({
+            'train_losses': train_losses,
+            'recon_losses': recon_losses,
+            'kl_losses': kl_losses,
+            'val_losses': val_losses
+        }, f, indent=2)
+
 
 
 if __name__ == "__main__":
