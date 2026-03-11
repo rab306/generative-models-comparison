@@ -8,6 +8,8 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
 
+# ✅ Remove config import - pass values as parameters instead
+
 def set_seed(seed):
     """Set all random seeds for reproducibility"""
     torch.manual_seed(seed)
@@ -18,15 +20,7 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 def get_cifar10_loaders(batch_size, normalize_to_minus_one=False, num_workers=2, data_dir="./data"):
-    """
-    Returns train and test DataLoaders for CIFAR-10.
-    
-    Args:
-        batch_size: int
-        normalize_to_minus_one: If True, normalize to [-1, 1] (DDPM). If False, [0, 1] (VAE).
-        num_workers: int - Number of data loading workers
-        data_dir: str - Path to data directory
-    """
+    """Returns train and test DataLoaders for CIFAR-10."""
     if normalize_to_minus_one:
         transform = transforms.Compose([
             transforms.RandomHorizontalFlip(),
@@ -72,9 +66,6 @@ def get_cifar10_loaders(batch_size, normalize_to_minus_one=False, num_workers=2,
     return train_loader, test_loader
 
 def save_image_grid(images, filename, nrow=8):
-    """
-    Saves a grid of images.
-    images: Tensor of shape (N, C, H, W) in range [0, 1]
-    """
+    """Saves a grid of images."""
     os.makedirs(os.path.dirname(filename) if os.path.dirname(filename) else '.', exist_ok=True)
     save_image(images, filename, nrow=nrow, normalize=True, pad_value=1.0)
