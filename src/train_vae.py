@@ -60,7 +60,8 @@ def train_vae(config):
     
     # 4. Fixed Noise for Consistent Sampling
     torch.manual_seed(42)
-    fixed_noise = torch.randn(config.NUM_VISUALIZE_SAMPLES, config.VAE_LATENT_DIM).to(config.DEVICE)
+    fixed_noise_cpu = torch.randn(config.NUM_VISUALIZE_SAMPLES, config.VAE_LATENT_DIM)
+    fixed_noise = fixed_noise_cpu.to(config.DEVICE)
     
     # 5. Training Tracking
     best_val_loss = float('inf')
