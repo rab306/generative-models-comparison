@@ -33,6 +33,11 @@ class VAE(nn.Module):
         h = h.view(h.size(0), -1)
         return self.fc_mu(h), self.fc_logvar(h)
     
+    def reparameterize(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std
+    
     def decode(self, z):
         h = F.relu(self.dec_fc(z))
         h = h.view(-1, 256, 4, 4)
