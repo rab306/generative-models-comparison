@@ -2,65 +2,55 @@
 
 import torch
 import torch.optim as optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data import DataLoader
 import os
+import sys
 from datetime import datetime
 from tqdm import tqdm
 
-from config import (
-    DEVICE, EPOCHS_VAE, VAE_LEARNING_RATE, VAE_BETA, 
-    SAVE_DIR, BATCH_SIZE_VAE, VAE_LATENT_DIM, CHECKPOINT_DIR
-)
-from models import VAE, vae_loss_function
-from utils import get_cifar10_loaders, save_image_grid
+# Import config with argument support
+from config import get_config, get_argparser
 
-def validate(model, test_loader):
-    """Run validation loop"""
-    model.eval()
-    val_loss = 0
-    with torch.no_grad():
-        for data, _ in test_loader:
-            data = data.to(DEVICE)
-            x_recon, mu, logvar = model(data)
-            total_loss, _, _ = vae_loss_function(x_recon, data, mu, logvar, beta=VAE_BETA)
-            val_loss += total_loss.item()
-    return val_loss / len(test_loader)
-
-def train_vae():
-    print(f"🚀 Starting VAE Training on {DEVICE}")
-    print(f"   Batch Size: {BATCH_SIZE_VAE}, Latent Dim: {VAE_LATENT_DIM}, Beta: {VAE_BETA}")
-    print(f"   Epochs: {EPOCHS_VAE}, Learning Rate: {VAE_LEARNING_RATE}")
+def train_vae(config):
+    """Train VAE with given configuration"""
+    print(f"🚀 Starting VAE Training on {config.DEVICE}")
+    print(f"   Batch Size: {config.BATCH_SIZE_VAE}, Latent Dim: {config.VAE_LATENT_DIM}, Beta: {config.VAE_BETA}")
+    print(f"   Epochs: {config.EPOCHS_VAE}, Learning Rate: {config.VAE_LEARNING_RATE}")
+    
+    # Import here to avoid circular imports
+    from models import VAE, vae_loss_function
+    from utils import get_cifar10_loaders, save_image_grid
     
     # 1. Setup Directories
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir = os.path.join(SAVE_DIR, f"vae_run_{timestamp}")
+    run_dir = os.path.join(config.RESULTS_DIR, f"vae_run_{timestamp}")
     checkpoint_dir = os.path.join(run_dir, "checkpoints")
     sample_dir = os.path.join(run_dir, "samples")
     os.makedirs(checkpoint_dir, exist_ok=True)
     os.makedirs(sample_dir, exist_ok=True)
     
+    # Save config to run directory
+    config.save(os.path.join(run_dir, "config.json"))
+    
     # 2. Data Loaders
     train_loader, test_loader = get_cifar10_loaders(
-        batch_size=BATCH_SIZE_VAE, 
+        batch_size=config.BATCH_SIZE_VAE, 
         normalize_to_minus_one=False
     )
     print(f"   Training samples: {len(train_loader.dataset)}")
     print(f"   Validation samples: {len(test_loader.dataset)}")
     
-    # 3. Model, Optimizer, Scheduler
-    model = VAE(latent_dim=VAE_LATENT_DIM).to(DEVICE)
-    optimizer = optim.Adam(model.parameters(), lr=VAE_LEARNING_RATE)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
+    # 3. Model, Optimizer
+    model = VAE(latent_dim=config.VAE_LATENT_DIM).to(config.DEVICE)
+    optimizer = optim.Adam(model.parameters(), lr=config.VAE_LEARNING_RATE)
     
     # 4. Fixed Noise for Consistent Sampling
-    fixed_noise = torch.randn(36, VAE_LATENT_DIM).to(DEVICE)  # 6x6 grid
+    fixed_noise = torch.randn(config.NUM_VISUALIZE_SAMPLES, config.VAE_LATENT_DIM).to(config.DEVICE)
     
     # 5. Training Tracking
     best_loss = float('inf')
     
     # 6. Training Loop
-    for epoch in range(1, EPOCHS_VAE + 1):
+    for epoch in range(1, config.EPOCHS_VAE + 1):
         model.train()
         total_loss_epoch = 0
         recon_loss_epoch = 0
@@ -68,7 +58,7 @@ def train_vae():
         
         progress_bar = tqdm(train_loader, desc=f"Epoch {epoch:03d}")
         for batch_idx, (data, _) in enumerate(progress_bar):
-            data = data.to(DEVICE)
+            data = data.to(config.DEVICE)
             
             optimizer.zero_grad()
             
@@ -77,10 +67,10 @@ def train_vae():
             
             # Compute Loss
             total_loss, recon_loss, kl_loss = vae_loss_function(
-                x_recon, data, mu, logvar, beta=VAE_BETA
+                x_recon, data, mu, logvar, beta=config.VAE_BETA
             )
             
-            # Backward Pass with Gradient Clipping
+            # Backward Pass
             total_loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
@@ -97,47 +87,51 @@ def train_vae():
                 'kl': f"{kl_loss.item():.2f}"
             })
         
-        # Calculate average losses (per batch)
+        # Calculate average losses
         avg_total = total_loss_epoch / len(train_loader)
         avg_recon = recon_loss_epoch / len(train_loader)
         avg_kl = kl_loss_epoch / len(train_loader)
         
-        # Validation
-        val_loss = validate(model, test_loader)
-        
-        # Learning Rate Scheduling
-        scheduler.step(val_loss)
+        # Simple validation (first batch of test set)
+        model.eval()
+        with torch.no_grad():
+            test_batch, _ = next(iter(test_loader))
+            test_batch = test_batch.to(config.DEVICE)
+            x_recon, mu, logvar = model(test_batch)
+            val_loss, _, _ = vae_loss_function(x_recon, test_batch, mu, logvar, beta=config.VAE_BETA)
+            val_loss = val_loss.item() / len(test_batch)  # Per-sample loss
         
         # Logging
         print(f"\nEpoch {epoch:03d} | "
               f"Train Total: {avg_total:.2f} (Recon: {avg_recon:.2f}, KL: {avg_kl:.2f}) | "
-              f"Val: {val_loss:.2f} | "
-              f"LR: {optimizer.param_groups[0]['lr']:.2e}")
+              f"Val: {val_loss:.2f}")
         
         # Generate and Save Samples
-        if epoch % 5 == 0 or epoch == 1:  # Save every 5 epochs
+        if epoch % config.SAMPLE_INTERVAL == 0 or epoch == 1:
             model.eval()
             with torch.no_grad():
                 samples = model.decode(fixed_noise)
                 sample_filename = os.path.join(sample_dir, f"epoch_{epoch:03d}.png")
-                save_image_grid(samples, sample_filename, nrow=6)
+                save_image_grid(samples, sample_filename, nrow=int(config.NUM_VISUALIZE_SAMPLES**0.5))
         
         # Save Checkpoint
-        checkpoint_path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch:03d}.pth")
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': avg_total,
-            'val_loss': val_loss,
-        }, checkpoint_path)
-        
-        # Save Best Model
-        if val_loss < best_loss:
-            best_loss = val_loss
-            best_path = os.path.join(run_dir, "best_model.pth")
-            torch.save(model.state_dict(), best_path)
-            print(f"   ✓ New best model! (Val Loss: {val_loss:.2f})")
+        if epoch % config.SAVE_INTERVAL == 0:
+            checkpoint_path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch:03d}.pth")
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': avg_total,
+                'val_loss': val_loss,
+                'config': config.to_dict(),
+            }, checkpoint_path)
+            
+            # Save Best Model
+            if val_loss < best_loss:
+                best_loss = val_loss
+                best_path = os.path.join(run_dir, "best_model.pth")
+                torch.save(model.state_dict(), best_path)
+                print(f"   ✓ New best model! (Val Loss: {val_loss:.2f})")
         
         print("")
     
@@ -147,5 +141,14 @@ def train_vae():
     
     return model, run_dir
 
+
 if __name__ == "__main__":
-    train_vae()
+    # Parse command line arguments
+    parser = get_argparser()
+    args = parser.parse_args()
+    
+    # Get configuration with overrides
+    config = get_config(args)
+    
+    # Run training
+    train_vae(config)
