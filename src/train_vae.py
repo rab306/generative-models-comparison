@@ -195,6 +195,7 @@ def train_vae(config):
             'val_losses': val_losses
         }, f, indent=2)
 
+    return model, run_dir, train_losses, val_losses, recon_losses, kl_losses
 
 
 if __name__ == "__main__":
