@@ -59,6 +59,7 @@ def train_vae(config):
     print(f"   Trainable Params:   {trainable_params:,}\n")
     
     # 4. Fixed Noise for Consistent Sampling
+    torch.manual_seed(42)
     fixed_noise = torch.randn(config.NUM_VISUALIZE_SAMPLES, config.VAE_LATENT_DIM).to(config.DEVICE)
     
     # 5. Training Tracking
