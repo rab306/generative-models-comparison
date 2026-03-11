@@ -25,8 +25,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config import get_config
-from models import VAE
-from utils import get_cifar10_loaders
+from src.models import VAE
+from src.utils import get_cifar10_loaders
 
 # Initialize config
 config = get_config()
@@ -85,16 +85,21 @@ def generate_vae_samples(model, config, n_samples=5000, batch_size=64):
     return samples
 
 
-def get_real_images(n_samples=10000):
+def get_real_images(config, n_samples=10000):
     """Load real CIFAR-10 test images"""
     print(f"  Loading {n_samples} real CIFAR-10 images...")
-    _, test_loader = get_cifar10_loaders(batch_size=128, normalize_to_minus_one=False)
+    _, test_loader = get_cifar10_loaders(
+        batch_size=128, 
+        normalize_to_minus_one=False,
+        num_workers=config.NUM_WORKERS,
+        data_dir=config.DATA_DIR
+    )
     
     real_images = []
     for images, _ in test_loader:
+        real_images.append(images)
         if len(torch.cat(real_images)) >= n_samples:
             break
-        real_images.append(images)
     
     real_images = torch.cat(real_images)[:n_samples]
     return real_images
@@ -149,7 +154,7 @@ def main():
     
     # Load real images
     print("\n🖼️  Loading real CIFAR-10 test images...")
-    real_images = get_real_images(n_samples=10000)
+    real_images = get_real_images(config, n_samples=10000)
     print(f"  ✅ Loaded {len(real_images)} real images")
     
     # Generate samples
