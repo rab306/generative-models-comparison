@@ -65,6 +65,8 @@ def train_vae(config):
     best_val_loss = float('inf')
     train_losses = []
     val_losses = []
+    recon_losses = []
+    kl_losses = []
     
     # 6. Training Loop
     for epoch in range(1, config.EPOCHS_VAE + 1):
@@ -115,6 +117,8 @@ def train_vae(config):
         
         val_loss_avg = val_total / len(test_loader)
         train_losses.append(avg_total)
+        recon_losses.append(avg_recon)
+        kl_losses.append(avg_kl)
         val_losses.append(val_loss_avg)
         
         # Logging
