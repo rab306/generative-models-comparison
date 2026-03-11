@@ -25,8 +25,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config import get_config
-from src.models import VAE
-from src.utils import get_cifar10_loaders
+from models import VAE
+from utils import get_cifar10_loaders
 
 # Initialize config
 config = get_config()
