@@ -59,9 +59,17 @@ def train_vae(config):
     print(f"   Trainable Params:   {trainable_params:,}\n")
     
     # 4. Fixed Noise for Consistent Sampling
+    # Set seed for BOTH CPU and GPU
     torch.manual_seed(42)
-    fixed_noise_cpu = torch.randn(config.NUM_VISUALIZE_SAMPLES, config.VAE_LATENT_DIM)
-    fixed_noise = fixed_noise_cpu.to(config.DEVICE)
+    torch.cuda.manual_seed(42)
+    torch.cuda.manual_seed_all(42)  # if using multi-GPU
+
+    # Optional: make CuDNN deterministic (slower but reproducible)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+# Now create noise directly on GPU
+fixed_noise = torch.randn(config.NUM_VISUALIZE_SAMPLES, config.VAE_LATENT_DIM, device=config.DEVICE)
     
     # 5. Training Tracking
     best_val_loss = float('inf')
