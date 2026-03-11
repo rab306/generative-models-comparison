@@ -55,12 +55,12 @@ plt.grid(True, alpha=0.3)
 
 plt.tight_layout()
 
-plt.show()
-
 # SAVE the plot
 output_file = os.path.join(latest_run, 'loss_curves.png')
 plt.savefig(output_file, dpi=150, bbox_inches='tight')
 print(f"\n✅ Plot saved to: {output_file}")
+
+plt.show()
 
 # Also print final ratio
 kl_ratio = df['kl_loss'].iloc[-1] / df['recon_loss'].iloc[-1]
