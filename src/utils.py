@@ -8,9 +8,6 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
 
-# Import config values (will use defaults)
-from config import DATA_DIR, NUM_WORKERS
-
 def set_seed(seed):
     """Set all random seeds for reproducibility"""
     torch.manual_seed(seed)
@@ -20,9 +17,15 @@ def set_seed(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-def get_cifar10_loaders(batch_size, normalize_to_minus_one=False):
+def get_cifar10_loaders(batch_size, normalize_to_minus_one=False, num_workers=2, data_dir="./data"):
     """
     Returns train and test DataLoaders for CIFAR-10.
+    
+    Args:
+        batch_size: int
+        normalize_to_minus_one: If True, normalize to [-1, 1] (DDPM). If False, [0, 1] (VAE).
+        num_workers: int - Number of data loading workers
+        data_dir: str - Path to data directory
     """
     if normalize_to_minus_one:
         transform = transforms.Compose([
@@ -37,14 +40,14 @@ def get_cifar10_loaders(batch_size, normalize_to_minus_one=False):
         ])
 
     train_dataset = datasets.CIFAR10(
-        root=DATA_DIR, 
+        root=data_dir, 
         train=True, 
         download=True, 
         transform=transform
     )
     
     test_dataset = datasets.CIFAR10(
-        root=DATA_DIR, 
+        root=data_dir, 
         train=False, 
         download=True, 
         transform=transform
@@ -54,7 +57,7 @@ def get_cifar10_loaders(batch_size, normalize_to_minus_one=False):
         train_dataset, 
         batch_size=batch_size, 
         shuffle=True, 
-        num_workers=NUM_WORKERS,
+        num_workers=num_workers,
         pin_memory=True if torch.cuda.is_available() else False
     )
     
@@ -62,7 +65,7 @@ def get_cifar10_loaders(batch_size, normalize_to_minus_one=False):
         test_dataset, 
         batch_size=batch_size, 
         shuffle=False, 
-        num_workers=NUM_WORKERS,
+        num_workers=num_workers,
         pin_memory=True if torch.cuda.is_available() else False
     )
     
