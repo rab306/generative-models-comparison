@@ -154,12 +154,12 @@ def main():
     
     # Load real images
     print("\n🖼️  Loading real CIFAR-10 test images...")
-    real_images = get_real_images(config, n_samples=10000)
+    real_images = get_real_images(config, n_samples=5000)
     print(f"  ✅ Loaded {len(real_images)} real images")
     
     # Generate samples
     print("\n🎨 Generating VAE samples...")
-    vae_samples = generate_vae_samples(vae_model, config, n_samples=5000)
+    vae_samples = generate_vae_samples(vae_model, config, n_samples=2000)
     print(f"  ✅ Generated {len(vae_samples)} samples")
     
     # Compute metrics
