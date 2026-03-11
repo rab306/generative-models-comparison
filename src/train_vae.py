@@ -13,6 +13,13 @@ from utils import get_cifar10_loaders, save_image_grid, set_seed
 
 def train_vae(config):
     """Train VAE with given configuration."""
+    # 🔴 SET SEEDS FIRST, before ANY randomness (data loaders, model init, etc.)
+    torch.manual_seed(config.RANDOM_SEED)
+    torch.cuda.manual_seed(config.RANDOM_SEED)
+    torch.cuda.manual_seed_all(config.RANDOM_SEED)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    
     print(f"\n{'='*60}")
     print(f"🚀 Starting VAE Training on {config.DEVICE}")
     print(f"{'='*60}")
@@ -59,6 +66,7 @@ def train_vae(config):
     print(f"   Trainable Params:   {trainable_params:,}\n")
     
     # 4. Fixed Noise for Consistent Sampling
+    # This will now be deterministic because seeds were set at the start
     fixed_noise = torch.randn(config.NUM_VISUALIZE_SAMPLES, config.VAE_LATENT_DIM, device=config.DEVICE)
     
     # 5. Training Tracking
@@ -167,7 +175,7 @@ def train_vae(config):
     print(f"   Best Val Loss:     {best_val_loss:.3f}")
     print(f"{'='*60}\n")
     
-    # Save loss history - MODIFY THIS SECTION
+    # Save loss history
     import csv
     import json
 
@@ -202,13 +210,6 @@ if __name__ == "__main__":
     parser = get_argparser()
     args = parser.parse_args()
     config = get_config(args)
-    
-    # 🔴 SET SEEDS FIRST, before ANY randomness (including model init)
-    torch.manual_seed(config.RANDOM_SEED)
-    torch.cuda.manual_seed(config.RANDOM_SEED)
-    torch.cuda.manual_seed_all(config.RANDOM_SEED)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
     
     print(f"\n📋 Configuration Summary:")
     print(f"   Device: {config.DEVICE}")
