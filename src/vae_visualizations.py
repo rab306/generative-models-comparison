@@ -1,6 +1,7 @@
 # scripts/visualize_loss.py
 """
 Simple script to visualize VAE training losses.
+Shows plots in console and saves them.
 Run after training: python scripts/visualize_loss.py
 """
 
@@ -24,9 +25,13 @@ if not os.path.exists(loss_file):
 
 # Load data
 df = pd.read_csv(loss_file)
+print(f"\n📊 Loaded loss history from: {loss_file}")
+print(f"   Epochs: {len(df)}")
+print(f"   Final Train Loss: {df['train_loss'].iloc[-1]:.4f}")
+print(f"   Final Val Loss: {df['val_loss'].iloc[-1]:.4f}")
 
-# Create figure
-plt.figure(figsize=(12, 5))
+# Create figure for DISPLAY
+plt.figure(figsize=(14, 6))
 
 # Plot 1: Train vs Val Loss
 plt.subplot(1, 2, 1)
@@ -50,9 +55,13 @@ plt.grid(True, alpha=0.3)
 
 plt.tight_layout()
 
-# Save
+plt.show()
+
+# SAVE the plot
 output_file = os.path.join(latest_run, 'loss_curves.png')
 plt.savefig(output_file, dpi=150, bbox_inches='tight')
-print(f"✅ Loss curves saved to: {output_file}")
+print(f"\n✅ Plot saved to: {output_file}")
 
-plt.show()
+# Also print final ratio
+kl_ratio = df['kl_loss'].iloc[-1] / df['recon_loss'].iloc[-1]
+print(f"   Final KL/Recon Ratio: {kl_ratio:.4f}")
