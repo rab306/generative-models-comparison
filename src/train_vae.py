@@ -209,6 +209,6 @@ if __name__ == "__main__":
     print(f"   Results Dir: {config.RESULTS_DIR}")
     print("")
     
-    model, run_dir, train_losses, val_losses = train_vae(config)
+    model, run_dir, train_losses, val_losses, recon_losses, kl_losses = train_vae(config)
     
     print(f"🎉 VAE Training Finished Successfully!")
