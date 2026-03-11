@@ -7,8 +7,8 @@ from datetime import datetime
 from tqdm import tqdm
 
 # ✅ Use relative imports within the src package
-from .config import get_config, get_argparser
-from .utils import get_cifar10_loaders, save_image_grid, set_seed
+from config import get_config, get_argparser
+from utils import get_cifar10_loaders, save_image_grid, set_seed
 
 
 def train_vae(config):
@@ -25,7 +25,7 @@ def train_vae(config):
     print(f"{'='*60}\n")
     
     # ✅ Import models with relative import
-    from .models import VAE, vae_loss_function
+    from models import VAE, vae_loss_function
     
     # 1. Setup Directories
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

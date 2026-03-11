@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # ✅ Use relative import within the src package
-from .config import VAE_LATENT_DIM, DEVICE
+from config import VAE_LATENT_DIM, DEVICE
 
 class VAE(nn.Module):
     def __init__(self, latent_dim=VAE_LATENT_DIM):
