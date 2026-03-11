@@ -113,7 +113,7 @@ def train_vae(config):
                 v_loss, _, _ = vae_loss_function(x_recon, test_data, mu, logvar, beta=config.VAE_BETA)
                 val_total += v_loss.item()
         
-        val_loss_avg = val_total / len(test_loader.dataset)
+        val_loss_avg = val_total / len(test_loader)
         train_losses.append(avg_total)
         val_losses.append(val_loss_avg)
         
