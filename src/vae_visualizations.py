@@ -16,7 +16,7 @@ if not runs:
     exit()
 
 latest_run = max(runs, key=os.path.getctime)
-loss_file = os.path.join(latest_run, 'loss_history.csv')
+loss_file = os.path.join(latest_run, 'loss_history.json')
 
 if not os.path.exists(loss_file):
     print(f"No loss history found at {loss_file}")
