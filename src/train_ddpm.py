@@ -20,35 +20,21 @@ def sample_ddpm(model, batch_size=1, device='cuda'):
     """
     DDPM sampling: reverse diffusion process.
     Iteratively denoise from pure noise to image.
-    This is the slow but high-quality sampling method.
-    
-    Args:
-        model: DDPM model
-        batch_size: Number of images to generate
-        device: Device to use
-    
-    Returns:
-        samples: Generated images in range [-1, 1]
     """
     x = torch.randn(batch_size, 3, 32, 32, device=device)
     
     for t in reversed(range(model.timesteps)):
         t_tensor = torch.full((batch_size,), t, device=device, dtype=torch.long)
-        
-        # Predict noise
         noise_pred = model.denoise(x, t_tensor)
         
-        # Get alpha values for this timestep
         alpha_dict = model.get_alpha_values(t)
         alpha = alpha_dict['alpha']
         alpha_bar = alpha_dict['alpha_bar']
         beta = alpha_dict['beta']
         
-        # Denoise step: x_{t-1} = (1/sqrt(alpha)) * (x_t - ((1-alpha)/sqrt(1-alpha_bar)) * noise_pred)
         coeff = (1 - alpha) / torch.sqrt(1 - alpha_bar)
         x = (1 / torch.sqrt(alpha)) * (x - coeff * noise_pred)
         
-        # Add noise only if not the last step
         if t > 0:
             noise = torch.randn_like(x)
             x = x + torch.sqrt(beta) * noise
@@ -60,16 +46,6 @@ def sample_ddpm(model, batch_size=1, device='cuda'):
 def sample_ddpm_with_timing(model, batch_size=1, device='cuda'):
     """
     DDPM sampling with detailed timing information.
-    Tracks forward pass time and denoising step time separately.
-    
-    Args:
-        model: DDPM model
-        batch_size: Number of images to generate
-        device: Device to use
-    
-    Returns:
-        samples: Generated images in range [-1, 1]
-        timing_info: Dict with timing breakdown
     """
     timing_info = {
         'total_time': 0,
@@ -81,25 +57,21 @@ def sample_ddpm_with_timing(model, batch_size=1, device='cuda'):
     }
     
     x = torch.randn(batch_size, 3, 32, 32, device=device)
-    
     total_start = time.time()
     
     for step_idx, t in enumerate(reversed(range(model.timesteps))):
         t_tensor = torch.full((batch_size,), t, device=device, dtype=torch.long)
         
-        # Time the forward pass
         step_start = time.time()
         noise_pred = model.denoise(x, t_tensor)
         forward_time = time.time() - step_start
         timing_info['forward_passes'].append(forward_time)
         
-        # Get alpha values
         alpha_dict = model.get_alpha_values(t)
         alpha = alpha_dict['alpha']
         alpha_bar = alpha_dict['alpha_bar']
         beta = alpha_dict['beta']
         
-        # Time the denoising computation
         denoise_start = time.time()
         coeff = (1 - alpha) / torch.sqrt(1 - alpha_bar)
         x = (1 / torch.sqrt(alpha)) * (x - coeff * noise_pred)
@@ -111,7 +83,6 @@ def sample_ddpm_with_timing(model, batch_size=1, device='cuda'):
         denoise_time = time.time() - denoise_start
         timing_info['denoise_steps'].append(denoise_time)
         
-        # Print progress every 100 steps
         if (step_idx + 1) % 100 == 0:
             avg_forward = sum(timing_info['forward_passes'][-100:]) / 100
             print(f"      Step {step_idx + 1}/{model.timesteps} - Forward: {avg_forward*1000:.2f}ms")
@@ -125,13 +96,7 @@ def sample_ddpm_with_timing(model, batch_size=1, device='cuda'):
 
 
 def estimate_sampling_speed(model, config):
-    """
-    Estimate time required for sampling a single image.
-    Helps decide overall experiment timeline.
-    
-    Returns:
-        Dict with timing information
-    """
+    """Estimate time required for sampling a single image."""
     print("⏱️  Estimating sampling speed (single forward pass)...")
     
     model.eval()
@@ -140,11 +105,9 @@ def estimate_sampling_speed(model, config):
     dummy_x = torch.randn(1, 3, 32, 32, device=device)
     dummy_t = torch.randint(0, config.DDPM_TIMESTEPS, (1,), device=device)
     
-    # Warmup
     for _ in range(10):
         _ = model.denoise(dummy_x, dummy_t)
     
-    # Measure single forward pass
     torch.cuda.synchronize() if device == 'cuda' else None
     start = time.time()
     for _ in range(50):
@@ -152,8 +115,6 @@ def estimate_sampling_speed(model, config):
     torch.cuda.synchronize() if device == 'cuda' else None
     
     time_per_forward = (time.time() - start) / 50
-    
-    # Estimate full sampling time for 1 image
     time_per_sample_full = time_per_forward * config.DDPM_TIMESTEPS
     
     return {
@@ -164,25 +125,24 @@ def estimate_sampling_speed(model, config):
 
 def train_ddpm(config):
     """Train DDPM with given configuration."""
-    # 🔴 SET SEEDS FIRST, before ANY randomness
     torch.manual_seed(config.RANDOM_SEED)
     torch.cuda.manual_seed(config.RANDOM_SEED)
     torch.cuda.manual_seed_all(config.RANDOM_SEED)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    print(f"\n{'='*60}")
+    print(f"\n{'='*70}")
     print(f"🚀 Starting DDPM Training on {config.DEVICE}")
-    print(f"{'='*60}")
+    print(f"{'='*70}")
     print(f"   Batch Size:      {config.BATCH_SIZE_DDPM}")
     print(f"   Timesteps:       {config.DDPM_TIMESTEPS}")
     print(f"   Schedule:        {config.DDPM_BETA_SCHEDULE}")
     print(f"   Epochs:          {config.EPOCHS_DDPM}")
     print(f"   Learning Rate:   {config.DDPM_LEARNING_RATE}")
     print(f"   Num Workers:     {config.NUM_WORKERS}")
-    print(f"{'='*60}\n")
+    print(f"{'='*70}\n")
     
-    # 1. Setup Directories
+    # Setup Directories
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = os.path.join(config.RESULTS_DIR, f"ddpm_run_{timestamp}")
     checkpoint_dir = os.path.join(run_dir, "checkpoints")
@@ -192,21 +152,21 @@ def train_ddpm(config):
     
     config.save(os.path.join(run_dir, "config.json"))
     
-    # 2. Data Loaders (normalize_to_minus_one=True for DDPM)
+    # Data Loaders
     train_loader, test_loader = get_cifar10_loaders(
         batch_size=config.BATCH_SIZE_DDPM, 
-        normalize_to_minus_one=True,  # ✅ DDPM uses [-1, 1]
+        normalize_to_minus_one=True,
         num_workers=config.NUM_WORKERS,
         data_dir=config.DATA_DIR
     )
     print(f"   Training samples:   {len(train_loader.dataset):,}")
     print(f"   Test samples:       {len(test_loader.dataset):,}\n")
     
-    # 3. Create UNet and DDPM
+    # Create UNet and DDPM
     unet = UNet(
         in_channels=config.DDPM_IMAGE_CHANNELS,
         out_channels=config.DDPM_IMAGE_CHANNELS,
-        time_dim=256,  # Standard for DDPM
+        time_dim=256,
         base_channels=config.DDPM_CHANNELS,
         channel_mults=config.DDPM_CHANNEL_MULTS
     ).to(config.DEVICE)
@@ -218,8 +178,6 @@ def train_ddpm(config):
     ).to(config.DEVICE)
     
     optimizer = optim.AdamW(model.parameters(), lr=config.DDPM_LEARNING_RATE)
-    
-    # Cosine annealing LR scheduler (matches cosine noise schedule)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
         optimizer, 
         T_max=config.EPOCHS_DDPM,
@@ -232,23 +190,23 @@ def train_ddpm(config):
     print(f"   Total Parameters:   {total_params:,}")
     print(f"   Trainable Params:   {trainable_params:,}\n")
     
-    # 4. Training Tracking
+    # Training Tracking
     best_train_loss = float('inf')
     train_losses = []
+    val_losses = []
+    epoch_times = []
+    val_times = []
     
-    # 5. Speed estimation
+    # Speed estimation
     speed_info = estimate_sampling_speed(model, config)
     print(f"\n⏱️  Speed Estimates:")
     print(f"   Forward pass:      {speed_info['time_per_forward']*1000:.2f} ms")
     print(f"   Full sampling:     {speed_info['time_per_sample']:.2f} sec per image")
     
-    # Calculate estimated time for 500 images (evaluation)
     time_500_images = speed_info['time_per_sample'] * 500
     print(f"   Estimated time for 500 images: {time_500_images/60:.1f} minutes\n")
     
-    # 6. Training Loop
-    epoch_times = []
-    
+    # Training Loop
     for epoch in range(1, config.EPOCHS_DDPM + 1):
         epoch_start = time.time()
         
@@ -260,7 +218,6 @@ def train_ddpm(config):
             data = data.to(config.DEVICE)
             optimizer.zero_grad()
             
-            # Compute loss
             loss = model.compute_loss(data)
             
             loss.backward()
@@ -270,9 +227,23 @@ def train_ddpm(config):
             loss_epoch += loss.item()
             progress_bar.set_postfix({'loss': f"{loss.item():.4f}"})
         
-        # Calculate average training loss
+        # Average training loss
         avg_train_loss = loss_epoch / len(train_loader)
         train_losses.append(avg_train_loss)
+        
+        # ✅ VALIDATION: Compute loss on entire test set
+        model.eval()
+        val_loss = 0
+        val_start = time.time()
+        with torch.no_grad():
+            for test_data, _ in test_loader:
+                test_data = test_data.to(config.DEVICE)
+                val_loss += model.compute_loss(test_data).item()
+        
+        avg_val_loss = val_loss / len(test_loader)
+        val_losses.append(avg_val_loss)
+        val_time = time.time() - val_start
+        val_times.append(val_time)
         
         # Update learning rate
         scheduler.step()
@@ -281,15 +252,16 @@ def train_ddpm(config):
         epoch_time = time.time() - epoch_start
         epoch_times.append(epoch_time)
         
-        # Logging
+        # Logging (with validation)
         print(f"Epoch {epoch:03d} | "
-              f"Train Loss: {avg_train_loss:.4f} | "
+              f"Train: {avg_train_loss:.4f} | "
+              f"Val: {avg_val_loss:.4f} | "
+              f"Val Time: {val_time:.1f}s | "
               f"LR: {current_lr:.2e} | "
-              f"Time: {epoch_time:.1f}s")
+              f"Total: {epoch_time:.1f}s")
         
-        # Generate Sample with timing at specific epochs (20, 40, 60, 80, 100)
+        # Generate Sample with timing at specific epochs
         sample_epochs = [20, 40, 60, 80, 100]
-        # For short training runs, sample at final epoch
         if config.EPOCHS_DDPM < 20:
             sample_epochs = [config.EPOCHS_DDPM]
         
@@ -299,28 +271,25 @@ def train_ddpm(config):
                 print(f"\n   🖼️  Generating 1 sample with detailed timing...")
                 samples, timing_info = sample_ddpm_with_timing(
                     model, 
-                    batch_size=1,  # ✅ Only 1 image for timing analysis
+                    batch_size=1,
                     device=config.DEVICE
                 )
                 
-                # Print detailed timing
                 print(f"\n   ⏱️  Timing Results for Epoch {epoch}:")
                 print(f"      Total sampling time:     {timing_info['total_time']:.2f}s")
                 print(f"      Avg forward pass:        {timing_info['avg_forward_pass']*1000:.2f}ms")
                 print(f"      Avg denoise step:        {timing_info['avg_denoise_step']*1000:.2f}ms")
                 print(f"      Forward passes (1000):   {timing_info['avg_forward_pass'] * 1000:.2f}s")
                 
-                # Estimate time for evaluation (500 images)
                 est_500_images = timing_info['total_time'] * 500
                 print(f"      Est. time for 500 images: {est_500_images/60:.1f} minutes")
                 print(f"      Est. time for 500 images: {est_500_images/3600:.2f} hours\n")
                 
-                # Save sample
                 sample_filename = os.path.join(sample_dir, f"epoch_{epoch:03d}.png")
                 save_image_grid(samples, sample_filename, nrow=1)
                 print(f"   📸 Sample saved: {sample_filename}\n")
         
-        # Save checkpoint every SAVE_INTERVAL
+        # Save checkpoint
         if epoch % config.SAVE_INTERVAL == 0 or epoch == config.EPOCHS_DDPM:
             checkpoint_path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch:03d}.pth")
             torch.save({
@@ -328,6 +297,7 @@ def train_ddpm(config):
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'train_loss': avg_train_loss,
+                'val_loss': avg_val_loss,
             }, checkpoint_path)
         
         # Save best model
@@ -338,53 +308,55 @@ def train_ddpm(config):
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'train_loss': avg_train_loss,
+                'val_loss': avg_val_loss,
             }, best_path)
             print(f"   ⭐ New best model! (Train Loss: {avg_train_loss:.4f})\n")
     
     # Training complete
-    print(f"\n{'='*60}")
+    print(f"\n{'='*70}")
     print(f"✅ Training Complete!")
-    print(f"{'='*60}")
+    print(f"{'='*70}")
     print(f"   Results saved to:  {run_dir}")
     print(f"   Best Train Loss:   {best_train_loss:.4f}")
     
-    # Training time statistics
     avg_epoch_time = sum(epoch_times) / len(epoch_times)
+    avg_val_time = sum(val_times) / len(val_times)
     total_train_time = sum(epoch_times)
+    
     print(f"   Avg time per epoch: {avg_epoch_time:.1f}s")
+    print(f"   Avg validation time: {avg_val_time:.1f}s ({(avg_val_time/avg_epoch_time)*100:.1f}% of epoch)")
     print(f"   Total training time: {total_train_time:.1f}s ({total_train_time/60:.1f} minutes)")
-    print(f"{'='*60}\n")
+    print(f"{'='*70}\n")
     
     # Save loss history as CSV
     csv_file = os.path.join(run_dir, "loss_history.csv")
     with open(csv_file, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['epoch', 'train_loss', 'epoch_time_seconds'])
+        writer.writerow(['epoch', 'train_loss', 'val_loss', 'epoch_time_seconds', 'val_time_seconds'])
         for epoch_idx in range(len(train_losses)):
-            writer.writerow([epoch_idx + 1, train_losses[epoch_idx], epoch_times[epoch_idx]])
+            writer.writerow([
+                epoch_idx + 1, 
+                train_losses[epoch_idx], 
+                val_losses[epoch_idx],
+                epoch_times[epoch_idx],
+                val_times[epoch_idx]
+            ])
     
     # Save loss history as JSON
     json_file = os.path.join(run_dir, "loss_history.json")
     with open(json_file, 'w') as f:
         json.dump({
             'train_losses': train_losses,
+            'val_losses': val_losses,
             'epoch_times': epoch_times,
+            'val_times': val_times,
             'total_training_time': sum(epoch_times),
             'avg_epoch_time': sum(epoch_times) / len(epoch_times),
+            'avg_val_time': sum(val_times) / len(val_times),
+            'val_time_percentage': (sum(val_times) / sum(epoch_times)) * 100,
         }, f, indent=2)
     
-    # Save timing info
-    timing_file = os.path.join(run_dir, "timing_info.json")
-    with open(timing_file, 'w') as f:
-        json.dump({
-            'initial_speed_estimates': {
-                'time_per_forward_ms': speed_info['time_per_forward'] * 1000,
-                'time_per_sample_seconds': speed_info['time_per_sample'],
-                'estimated_time_500_images_minutes': time_500_images / 60,
-            }
-        }, f, indent=2)
-    
-    return model, run_dir, train_losses, epoch_times
+    return model, run_dir, train_losses, val_losses, epoch_times, val_times
 
 
 if __name__ == "__main__":
@@ -398,6 +370,6 @@ if __name__ == "__main__":
     print(f"   Results Dir: {config.RESULTS_DIR}")
     print("")
     
-    model, run_dir, train_losses, epoch_times = train_ddpm(config)
+    model, run_dir, train_losses, val_losses, epoch_times, val_times = train_ddpm(config)
     
     print(f"🎉 DDPM Training Finished Successfully!")
