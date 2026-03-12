@@ -25,20 +25,19 @@ class Config:
     EPOCHS_DDPM = 50
     
     # VAE SPECIFIC
-    VAE_LATENT_DIM = 64  # ✅ Increased from 32
+    VAE_LATENT_DIM = 64  
     VAE_LEARNING_RATE = 1e-3
-    VAE_BETA = 1.0  # ✅ Increased from 0.001
+    VAE_BETA = 1.0  
     
     # DDPM SPECIFIC
-    DDPM_TIMESTEPS = 400
+    DDPM_TIMESTEPS = 1000  # ✅ Standard DDPM from original paper
     DDPM_LEARNING_RATE = 2e-4
     DDPM_IMAGE_CHANNELS = 3
     DDPM_CHANNELS = 64
     DDPM_CHANNEL_MULTS = (1, 2, 2, 2)
-    DDPM_EMA_DECAY = 0.9999
-    DDPM_BETA_START = 1e-4
-    DDPM_BETA_END = 0.02
-    DDPM_BETA_SCHEDULE = 'linear'
+    DDPM_BETA_START = 1e-4      # Kept for reference (not used with cosine schedule)
+    DDPM_BETA_END = 0.02         # Kept for reference (not used with cosine schedule)
+    DDPM_BETA_SCHEDULE = 'cosine'  # ✅ Cosine annealing schedule
     
     # EVALUATION
     NUM_GENERATED_SAMPLES = 5000
@@ -72,7 +71,6 @@ class Config:
     
     def _apply_args(self, args):
         """Override config with command-line arguments"""
-        # ✅ Map lowercase argparse names to UPPERCASE config attributes
         arg_to_attr = {
             'vae_beta': 'VAE_BETA',
             'vae_latent_dim': 'VAE_LATENT_DIM',
