@@ -30,14 +30,12 @@ class Config:
     VAE_BETA = 1.0  
     
     # DDPM SPECIFIC
-    DDPM_TIMESTEPS = 1000  # ✅ Standard DDPM from original paper
+    DDPM_TIMESTEPS = 1000
     DDPM_LEARNING_RATE = 2e-4
     DDPM_IMAGE_CHANNELS = 3
     DDPM_CHANNELS = 64
     DDPM_CHANNEL_MULTS = (1, 2, 2, 2)
-    DDPM_BETA_START = 1e-4      # Kept for reference (not used with cosine schedule)
-    DDPM_BETA_END = 0.02         # Kept for reference (not used with cosine schedule)
-    DDPM_BETA_SCHEDULE = 'cosine'  # ✅ Cosine annealing schedule
+    DDPM_BETA_SCHEDULE = 'cosine'  
     
     # EVALUATION
     NUM_GENERATED_SAMPLES = 5000

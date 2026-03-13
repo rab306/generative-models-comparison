@@ -15,11 +15,22 @@ from utils import get_cifar10_loaders, save_image_grid, set_seed
 from models import UNet, DDPM
 
 
+# src/train_ddpm.py - Add this function
+
 @torch.no_grad()
-def sample_ddpm_with_timing(model, batch_size, device='cuda'):
+def sample_ddpm_with_timing(model, fixed_noise=None, batch_size=16, device='cuda'):
     """
-    DDPM sampling with detailed timing information.
-    Uses the standard DDPM sampling formula.
+    DDPM sampling with detailed timing information and CORRECT posterior variance.
+    
+    Args:
+        model: DDPM model
+        fixed_noise: Optional fixed starting noise for consistent grids across epochs
+        batch_size: Number of images to generate (ignored if fixed_noise provided)
+        device: Device to use
+    
+    Returns:
+        samples: Generated images in range [-1, 1]
+        timing_info: Dict with timing breakdown
     """
     timing_info = {
         'total_time': 0,
@@ -30,12 +41,16 @@ def sample_ddpm_with_timing(model, batch_size, device='cuda'):
         'avg_denoise_step': 0,
     }
     
-    # Start from pure noise
-    x = torch.randn(batch_size, 3, 32, 32, device=device)
+    # Start from fixed noise (consistent across epochs) or random noise
+    if fixed_noise is not None:
+        x = fixed_noise.clone()  
+    else:
+        x = torch.randn(batch_size, 3, 32, 32, device=device)
+    
     total_start = time.time()
     
     for step_idx, t in enumerate(reversed(range(model.timesteps))):
-        t_tensor = torch.full((batch_size,), t, device=device, dtype=torch.long)
+        t_tensor = torch.full((x.shape[0],), t, device=device, dtype=torch.long)
         
         # Step 1: Predict noise (forward pass)
         step_start = time.time()
@@ -45,24 +60,33 @@ def sample_ddpm_with_timing(model, batch_size, device='cuda'):
         
         # Step 2: Get alpha values for this timestep
         alpha_dict = model.get_alpha_values(t)
-        alpha = alpha_dict['alpha']
-        alpha_bar = alpha_dict['alpha_bar']
-        beta = alpha_dict['beta']
+        
+        # ✅ FIX 1: Proper broadcasting with reshape
+        alpha = alpha_dict['alpha'].view(1, 1, 1, 1)
+        alpha_bar = alpha_dict['alpha_bar'].view(1, 1, 1, 1)
+        beta = alpha_dict['beta'].view(1, 1, 1, 1)
         
         # Step 3: Denoising update
         denoise_start = time.time()
         
-        # Standard DDPM update:
-        # x_{t-1} = 1/sqrt(alpha) * (x_t - (1-alpha)/sqrt(1-alpha_bar) * noise_pred) + sigma * z
-        coeff = (1 - alpha) / torch.sqrt(1 - alpha_bar + 1e-8)  # Added epsilon for numerical stability
+        # Compute mean: x_{t-1} = 1/sqrt(alpha) * (x_t - (1-alpha)/sqrt(1-alpha_bar) * noise_pred)
+        coeff = (1 - alpha) / torch.sqrt(1 - alpha_bar + 1e-8)
         x_mean = (1 / torch.sqrt(alpha)) * (x - coeff * noise_pred)
         
+        # ✅ FIX 2: Use CORRECT posterior variance (not just beta)
         if t > 0:
-            # Add noise for all but last step
+            # Compute posterior variance: beta_tilde = (1-alpha_bar_{t-1})/(1-alpha_bar_t) * beta_t
+            alpha_bar_prev = model.alpha_bars[t - 1].view(1, 1, 1, 1)
+            
+            # Posterior variance
+            beta_tilde = (1 - alpha_bar_prev) / (1 - alpha_bar) * beta
+            beta_tilde = beta_tilde.clamp(min=1e-20)  # Numerical stability
+            
+            # Add noise with correct posterior variance
             noise = torch.randn_like(x)
-            x = x_mean + torch.sqrt(beta) * noise
+            x = x_mean + torch.sqrt(beta_tilde) * noise
         else:
-            # Last step - no noise
+            # Last step - no noise added
             x = x_mean
         
         denoise_time = time.time() - denoise_start
@@ -92,6 +116,10 @@ def train_ddpm(config):
     torch.cuda.manual_seed_all(config.RANDOM_SEED)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+    # Create fixed noise for consistent sampling across epochs
+    fixed_noise = torch.randn(16, 3, 32, 32, device=config.DEVICE)
+    print(f"\n   🎲 Fixed noise created for consistent grid sampling\n")
 
     print(f"\n{'='*70}")
     print(f"🚀 Starting DDPM Training on {config.DEVICE}")
@@ -228,17 +256,18 @@ def train_ddpm(config):
               f"Total: {epoch_time:.1f}s")
         
         # Generate Sample with timing at specific epochs
-        sample_epochs = [20, 40, 60, 80, 100]
+        sample_epochs = [5, 10, 20, 40, 60, 80, 100]
         if config.EPOCHS_DDPM < 20:
             sample_epochs = [config.EPOCHS_DDPM]
         
         if epoch in sample_epochs:
             model.eval()
             with torch.no_grad():
-                print(f"\n   🖼️  Generating 16 sample with detailed timing...")
+                print(f"\n   🖼️  Generating 16 samples (FIXED NOISE) with detailed timing...")
+                # ✅ Pass fixed_noise to use same grid across all epochs
                 samples, timing_info = sample_ddpm_with_timing(
                     model, 
-                    batch_size=16,
+                    fixed_noise=fixed_noise,  # ← Use fixed noise
                     device=config.DEVICE
                 )
                 
@@ -246,13 +275,13 @@ def train_ddpm(config):
                 print(f"      Total sampling time:     {timing_info['total_time']:.2f}s")
                 print(f"      Avg forward pass:        {timing_info['avg_forward_pass']*1000:.2f}ms")
                 print(f"      Avg denoise step:        {timing_info['avg_denoise_step']*1000:.2f}ms")
-                print(f"      Forward passes (1000):   {timing_info['avg_forward_pass'] * 1000:.2f}s")
                 
-                est_500_images = timing_info['total_time'] * 500
-                print(f"      Est. time for 500 images during evaluation: {est_500_images/60:.1f} minutes")
+                est_500_images = timing_info['total_time'] * 500 / 16  # Scale from 16 to 500
+                print(f"      Est. time for 500 images: {est_500_images/60:.1f} minutes")
+                print(f"      Est. time for 500 images: {est_500_images/3600:.2f} hours\n")
                 
                 sample_filename = os.path.join(sample_dir, f"epoch_{epoch:03d}.png")
-                save_image_grid(samples, sample_filename, nrow=4)
+                save_image_grid(samples, sample_filename, nrow=4)  # ✅ 4x4 grid for 16 images
                 print(f"   📸 Sample saved: {sample_filename}\n")
         
         # Save checkpoint
