@@ -17,12 +17,23 @@ import argparse
 
 def find_latest_run(model_type):
     """Find latest run directory for given model type."""
-    pattern = f'results/{model_type}_run_*'
-    runs = glob.glob(pattern)
-    if not runs:
-        print(f"❌ No {model_type.upper()} training runs found in results/")
-        return None
-    return max(runs, key=os.path.getctime)
+    # Try multiple possible paths
+    possible_paths = [
+        f'results/{model_type}_run_*',
+        f'/kaggle/working/generative-models-comparison/results/{model_type}_run_*',
+        os.path.expanduser(f'~/results/{model_type}_run_*'),
+    ]
+    
+    for pattern in possible_paths:
+        runs = glob.glob(pattern)
+        if runs:
+            print(f"✅ Found {model_type.upper()} runs in: {pattern}")
+            return max(runs, key=os.path.getctime)
+    
+    print(f"❌ No {model_type.upper()} training runs found in any of:")
+    for p in possible_paths:
+        print(f"   - {p}")
+    return None
 
 
 def visualize_vae(run_dir):
