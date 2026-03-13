@@ -169,15 +169,6 @@ def train_ddpm(config):
     epoch_times = []
     val_times = []
     
-    # Speed estimation
-    speed_info = estimate_sampling_speed(model, config)
-    print(f"\n⏱️  Speed Estimates:")
-    print(f"   Forward pass:      {speed_info['time_per_forward']*1000:.2f} ms")
-    print(f"   Full sampling:     {speed_info['time_per_sample']:.2f} sec per image")
-    
-    time_500_images = speed_info['time_per_sample'] * 500
-    print(f"   Estimated time for 500 images: {time_500_images/60:.1f} minutes\n")
-    
     # Training Loop
     for epoch in range(1, config.EPOCHS_DDPM + 1):
         epoch_start = time.time()
