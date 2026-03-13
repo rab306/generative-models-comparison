@@ -16,36 +16,10 @@ from models import UNet, DDPM
 
 
 @torch.no_grad()
-def sample_ddpm(model, batch_size=1, device='cuda'):
-    """
-    DDPM sampling: reverse diffusion process.
-    Iteratively denoise from pure noise to image.
-    """
-    x = torch.randn(batch_size, 3, 32, 32, device=device)
-    
-    for t in reversed(range(model.timesteps)):
-        t_tensor = torch.full((batch_size,), t, device=device, dtype=torch.long)
-        noise_pred = model.denoise(x, t_tensor)
-        
-        alpha_dict = model.get_alpha_values(t)
-        alpha = alpha_dict['alpha']
-        alpha_bar = alpha_dict['alpha_bar']
-        beta = alpha_dict['beta']
-        
-        coeff = (1 - alpha) / torch.sqrt(1 - alpha_bar)
-        x = (1 / torch.sqrt(alpha)) * (x - coeff * noise_pred)
-        
-        if t > 0:
-            noise = torch.randn_like(x)
-            x = x + torch.sqrt(beta) * noise
-    
-    return x
-
-
-@torch.no_grad()
-def sample_ddpm_with_timing(model, batch_size=1, device='cuda'):
+def sample_ddpm_with_timing(model, batch_size, device='cuda'):
     """
     DDPM sampling with detailed timing information.
+    Uses the standard DDPM sampling formula.
     """
     timing_info = {
         'total_time': 0,
@@ -56,33 +30,45 @@ def sample_ddpm_with_timing(model, batch_size=1, device='cuda'):
         'avg_denoise_step': 0,
     }
     
+    # Start from pure noise
     x = torch.randn(batch_size, 3, 32, 32, device=device)
     total_start = time.time()
     
     for step_idx, t in enumerate(reversed(range(model.timesteps))):
         t_tensor = torch.full((batch_size,), t, device=device, dtype=torch.long)
         
+        # Step 1: Predict noise (forward pass)
         step_start = time.time()
         noise_pred = model.denoise(x, t_tensor)
         forward_time = time.time() - step_start
         timing_info['forward_passes'].append(forward_time)
         
+        # Step 2: Get alpha values for this timestep
         alpha_dict = model.get_alpha_values(t)
         alpha = alpha_dict['alpha']
         alpha_bar = alpha_dict['alpha_bar']
         beta = alpha_dict['beta']
         
+        # Step 3: Denoising update
         denoise_start = time.time()
-        coeff = (1 - alpha) / torch.sqrt(1 - alpha_bar)
-        x = (1 / torch.sqrt(alpha)) * (x - coeff * noise_pred)
+        
+        # Standard DDPM update:
+        # x_{t-1} = 1/sqrt(alpha) * (x_t - (1-alpha)/sqrt(1-alpha_bar) * noise_pred) + sigma * z
+        coeff = (1 - alpha) / torch.sqrt(1 - alpha_bar + 1e-8)  # Added epsilon for numerical stability
+        x_mean = (1 / torch.sqrt(alpha)) * (x - coeff * noise_pred)
         
         if t > 0:
+            # Add noise for all but last step
             noise = torch.randn_like(x)
-            x = x + torch.sqrt(beta) * noise
+            x = x_mean + torch.sqrt(beta) * noise
+        else:
+            # Last step - no noise
+            x = x_mean
         
         denoise_time = time.time() - denoise_start
         timing_info['denoise_steps'].append(denoise_time)
         
+        # Progress logging
         if (step_idx + 1) % 100 == 0:
             avg_forward = sum(timing_info['forward_passes'][-100:]) / 100
             print(f"      Step {step_idx + 1}/{model.timesteps} - Forward: {avg_forward*1000:.2f}ms")
@@ -91,6 +77,10 @@ def sample_ddpm_with_timing(model, batch_size=1, device='cuda'):
     timing_info['total_time'] = total_time
     timing_info['avg_forward_pass'] = sum(timing_info['forward_passes']) / len(timing_info['forward_passes'])
     timing_info['avg_denoise_step'] = sum(timing_info['denoise_steps']) / len(timing_info['denoise_steps'])
+    
+    print(f"\n   ✅ Sampling complete: {total_time:.2f}s total")
+    print(f"   📊 Avg forward pass: {timing_info['avg_forward_pass']*1000:.2f}ms")
+    print(f"   📊 Avg denoise step: {timing_info['avg_denoise_step']*1000:.2f}ms")
     
     return x, timing_info
 
@@ -234,7 +224,7 @@ def train_ddpm(config):
                 print(f"\n   🖼️  Generating 1 sample with detailed timing...")
                 samples, timing_info = sample_ddpm_with_timing(
                     model, 
-                    batch_size=1,
+                    batch_size=16,
                     device=config.DEVICE
                 )
                 
