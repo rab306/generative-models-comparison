@@ -307,7 +307,7 @@ def evaluate_ddpm(run_dir):
     print(f"  ✅ Loaded {len(real_images)} real images")
     
     print("\n🎨 Generating DDPM samples...")
-    print("   (This takes ~15-30 minutes, please be patient...)")
+    print("   (This takes ~30 minutes, please be patient...)")
     start_time = time.time()
     ddpm_samples = sample_ddpm(ddpm_model, n_samples=500)
     elapsed = time.time() - start_time
