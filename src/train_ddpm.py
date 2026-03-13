@@ -273,7 +273,7 @@ def train_ddpm(config):
                 'train_loss': avg_train_loss,
                 'val_loss': avg_val_loss,
             }, best_path)
-            print(f"   ⭐ New best model! (Train Loss: {avg_val_loss:.4f})\n")
+            print(f"   ⭐ New best model! (Validation Loss: {avg_val_loss:.4f})\n")
     
     # Training complete
     print(f"\n{'='*70}")
