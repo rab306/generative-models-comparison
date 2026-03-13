@@ -231,7 +231,7 @@ def train_ddpm(config):
               f"Total: {epoch_time:.1f}s")
         
         # Generate Sample with timing at specific epochs
-        sample_epochs = [20, 40, 60, 80, 100]
+        sample_epochs = [5, 10, 20, 40, 60, 80, 100]
         if config.EPOCHS_DDPM < 20:
             sample_epochs = [config.EPOCHS_DDPM]
         
