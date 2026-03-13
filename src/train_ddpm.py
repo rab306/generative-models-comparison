@@ -16,94 +16,57 @@ from models import UNet, DDPM
 
 @torch.no_grad()
 def sample_ddpm_with_timing(model, fixed_noise=None, batch_size=16, device='cuda'):
-    """
-    DDPM sampling with detailed timing information and CORRECT posterior variance.
     
-    Args:
-        model: DDPM model
-        fixed_noise: Optional fixed starting noise for consistent grids across epochs
-        batch_size: Number of images to generate (ignored if fixed_noise provided)
-        device: Device to use
-    
-    Returns:
-        samples: Generated images in range [-1, 1]
-        timing_info: Dict with timing breakdown
-    """
-    timing_info = {
-        'total_time': 0,
-        'forward_passes': [],
-        'denoise_steps': [],
-        'timesteps': model.timesteps,
-        'avg_forward_pass': 0,
-        'avg_denoise_step': 0,
-    }
-    
-    # Start from fixed noise (consistent across epochs) or random noise
     if fixed_noise is not None:
-        x = fixed_noise.clone()  # Clone to avoid modifying original
+        x = fixed_noise.clone()
     else:
         x = torch.randn(batch_size, 3, 32, 32, device=device)
     
-    total_start = time.time()
-    
-    for step_idx, t in enumerate(reversed(range(model.timesteps))):
+    for t in reversed(range(model.timesteps)):
         t_tensor = torch.full((x.shape[0],), t, device=device, dtype=torch.long)
         
-        # Step 1: Predict noise (forward pass)
-        step_start = time.time()
+        # Predict noise
         noise_pred = model.denoise(x, t_tensor)
-        forward_time = time.time() - step_start
-        timing_info['forward_passes'].append(forward_time)
         
-        # Step 2: Get alpha values for this timestep
-        alpha_dict = model.get_alpha_values(t)
+        # ✅ Index buffers directly — they're already on the right device
+        # and are 1D tensors, so [t] gives a scalar tensor
+        alpha            = model.alphas[t]
+        alpha_bar        = model.alpha_bars[t]
+        beta             = model.betas[t]
         
-        # ✅ FIX 1: Proper broadcasting with reshape
-        alpha = alpha_dict['alpha'].view(1, 1, 1, 1)
-        alpha_bar = alpha_dict['alpha_bar'].view(1, 1, 1, 1)
-        beta = alpha_dict['beta'].view(1, 1, 1, 1)
+        # Reshape for broadcasting
+        def bc(v): return v.view(1, 1, 1, 1)
         
-        # Step 3: Denoising update
-        denoise_start = time.time()
+        # Compute predicted x_0 first — more numerically stable
+        # x_0_pred = (x_t - sqrt(1 - alpha_bar) * noise_pred) / sqrt(alpha_bar)
+        sqrt_alpha_bar         = torch.sqrt(alpha_bar)
+        sqrt_one_minus_alpha_bar = torch.sqrt(1 - alpha_bar)
         
-        # Compute mean: x_{t-1} = 1/sqrt(alpha) * (x_t - (1-alpha)/sqrt(1-alpha_bar) * noise_pred)
-        coeff = (1 - alpha) / torch.sqrt(1 - alpha_bar + 1e-8)
-        x_mean = (1 / torch.sqrt(alpha)) * (x - coeff * noise_pred)
+        # ✅ Reconstruct x_0 from the noise prediction
+        x0_pred = (x - bc(sqrt_one_minus_alpha_bar) * noise_pred) / bc(sqrt_alpha_bar)
+        x0_pred = x0_pred.clamp(-1, 1)  # ✅ Clip to valid range — critical!
         
-        # ✅ FIX 2: Use CORRECT posterior variance (not just beta)
         if t > 0:
-            # Compute posterior variance: beta_tilde = (1-alpha_bar_{t-1})/(1-alpha_bar_t) * beta_t
-            alpha_bar_prev = model.alpha_bars[t - 1].view(1, 1, 1, 1)
+            alpha_bar_prev = model.alpha_bars[t - 1]
+            
+            # Posterior mean coefficients (from DDPM paper eq. 7)
+            coeff1 = torch.sqrt(alpha_bar_prev) * beta / (1 - alpha_bar)
+            coeff2 = torch.sqrt(alpha) * (1 - alpha_bar_prev) / (1 - alpha_bar)
+            
+            x_mean = bc(coeff1) * x0_pred + bc(coeff2) * x
             
             # Posterior variance
             beta_tilde = (1 - alpha_bar_prev) / (1 - alpha_bar) * beta
-            beta_tilde = beta_tilde.clamp(min=1e-20)  # Numerical stability
             
-            # Add noise with correct posterior variance
-            noise = torch.randn_like(x)
-            x = x_mean + torch.sqrt(beta_tilde) * noise
+            x = x_mean + torch.sqrt(bc(beta_tilde)) * torch.randn_like(x)
         else:
-            # Last step - no noise added
-            x = x_mean
-        
-        denoise_time = time.time() - denoise_start
-        timing_info['denoise_steps'].append(denoise_time)
-        
-        # Progress logging
-        if (step_idx + 1) % 100 == 0:
-            avg_forward = sum(timing_info['forward_passes'][-100:]) / 100
-            print(f"      Step {step_idx + 1}/{model.timesteps} - Forward: {avg_forward*1000:.2f}ms")
+            # t=0: just return the mean, no noise
+            alpha_bar_prev = torch.tensor(1.0, device=device)
+            coeff1 = torch.sqrt(alpha_bar_prev) * beta / (1 - alpha_bar)
+            coeff2 = torch.sqrt(alpha) * (1 - alpha_bar_prev) / (1 - alpha_bar)
+            x = bc(coeff1) * x0_pred + bc(coeff2) * x
     
-    total_time = time.time() - total_start
-    timing_info['total_time'] = total_time
-    timing_info['avg_forward_pass'] = sum(timing_info['forward_passes']) / len(timing_info['forward_passes'])
-    timing_info['avg_denoise_step'] = sum(timing_info['denoise_steps']) / len(timing_info['denoise_steps'])
-    
-    print(f"\n   ✅ Sampling complete: {total_time:.2f}s total")
-    print(f"   📊 Avg forward pass: {timing_info['avg_forward_pass']*1000:.2f}ms")
-    print(f"   📊 Avg denoise step: {timing_info['avg_denoise_step']*1000:.2f}ms")
-    
-    return x, timing_info
+    return x
 
 
 def train_ddpm(config):
