@@ -19,9 +19,9 @@ def find_latest_run(model_type):
     """Find latest run directory for given model type."""
     # Try multiple possible paths
     possible_paths = [
-        f'results/{model_type}_run_*',
-        f'/kaggle/working/generative-models-comparison/results/{model_type}_run_*',
-        os.path.expanduser(f'~/results/{model_type}_run_*'),
+        f'results/',
+        f'/kaggle/working/generative-models-comparison/results/',
+        os.path.expanduser(f'~/results/'),
     ]
     
     for pattern in possible_paths:
