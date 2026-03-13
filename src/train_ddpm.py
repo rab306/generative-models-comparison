@@ -95,34 +95,6 @@ def sample_ddpm_with_timing(model, batch_size=1, device='cuda'):
     return x, timing_info
 
 
-def estimate_sampling_speed(model, config):
-    """Estimate time required for sampling a single image."""
-    print("⏱️  Estimating sampling speed (single forward pass)...")
-    
-    model.eval()
-    device = config.DEVICE
-    
-    dummy_x = torch.randn(1, 3, 32, 32, device=device)
-    dummy_t = torch.randint(0, config.DDPM_TIMESTEPS, (1,), device=device)
-    
-    for _ in range(10):
-        _ = model.denoise(dummy_x, dummy_t)
-    
-    torch.cuda.synchronize() if device == 'cuda' else None
-    start = time.time()
-    for _ in range(50):
-        _ = model.denoise(dummy_x, dummy_t)
-    torch.cuda.synchronize() if device == 'cuda' else None
-    
-    time_per_forward = (time.time() - start) / 50
-    time_per_sample_full = time_per_forward * config.DDPM_TIMESTEPS
-    
-    return {
-        'time_per_forward': time_per_forward,
-        'time_per_sample': time_per_sample_full,
-    }
-
-
 def train_ddpm(config):
     """Train DDPM with given configuration."""
     torch.manual_seed(config.RANDOM_SEED)
@@ -301,8 +273,8 @@ def train_ddpm(config):
             }, checkpoint_path)
         
         # Save best model
-        if avg_train_loss < best_train_loss:
-            best_train_loss = avg_train_loss
+        if avg_val_loss < best_train_loss:
+            best_train_loss = avg_val_loss
             best_path = os.path.join(run_dir, "best_model.pth")
             torch.save({
                 'epoch': epoch,
@@ -310,7 +282,7 @@ def train_ddpm(config):
                 'train_loss': avg_train_loss,
                 'val_loss': avg_val_loss,
             }, best_path)
-            print(f"   ⭐ New best model! (Train Loss: {avg_train_loss:.4f})\n")
+            print(f"   ⭐ New best model! (Train Loss: {avg_val_loss:.4f})\n")
     
     # Training complete
     print(f"\n{'='*70}")

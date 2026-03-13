@@ -63,3 +63,34 @@ def test_ddpm():
 
 if __name__ == "__main__":
     test_ddpm()
+
+
+
+
+
+def estimate_sampling_speed(model, config):
+    """Estimate time required for sampling a single image."""
+    print("⏱️  Estimating sampling speed (single forward pass)...")
+    
+    model.eval()
+    device = config.DEVICE
+    
+    dummy_x = torch.randn(1, 3, 32, 32, device=device)
+    dummy_t = torch.randint(0, config.DDPM_TIMESTEPS, (1,), device=device)
+    
+    for _ in range(10):
+        _ = model.denoise(dummy_x, dummy_t)
+    
+    torch.cuda.synchronize() if device == 'cuda' else None
+    start = time.time()
+    for _ in range(50):
+        _ = model.denoise(dummy_x, dummy_t)
+    torch.cuda.synchronize() if device == 'cuda' else None
+    
+    time_per_forward = (time.time() - start) / 50
+    time_per_sample_full = time_per_forward * config.DDPM_TIMESTEPS
+    
+    return {
+        'time_per_forward': time_per_forward,
+        'time_per_sample': time_per_sample_full,
+    }
