@@ -238,6 +238,7 @@ def train_ddpm(config):
         if epoch in sample_epochs:
             model.eval()
             with torch.no_grad():
+                torch.manual_seed(42)
                 print(f"\n   🖼️  Generating 16 samples (FIXED NOISE) with detailed timing...")
                 # ✅ Pass fixed_noise to use same grid across all epochs
                 samples, timing_info = sample_ddpm_with_timing(
