@@ -106,7 +106,7 @@ def train_ddpm(config):
     
     # Setup Directories
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir = os.path.join(config.RESULTS_DIR, f"ddpm_run_{timestamp}")
+    run_dir = os.path.join(config.RESULTS_DIR, f"run_ddpm_{timestamp}")
     checkpoint_dir = os.path.join(run_dir, "checkpoints")
     sample_dir = os.path.join(run_dir, "samples")
     os.makedirs(checkpoint_dir, exist_ok=True)
@@ -145,6 +145,20 @@ def train_ddpm(config):
         T_max=config.EPOCHS_DDPM,
         eta_min=1e-6
     )
+
+    best_model_path = os.path.join(config.RESULTS_DIR, 'best_model.pth')
+    start_epoch = 1
+
+    if os.path.exists(best_model_path):
+        print(f"   📂 Found checkpoint: {best_model_path}")
+        checkpoint = torch.load(best_model_path, map_location=config.DEVICE)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint.get('epoch', 1) + 1
+        print(f"   ✅ Resumed from epoch {start_epoch - 1}")
+        print(f"   📊 Previous val loss: {checkpoint.get('val_loss', '?'):.4f}\n")
+    else:
+        print(f"   🆕 No checkpoint found, starting fresh\n")
     
     # Count parameters
     total_params = sum(p.numel() for p in model.parameters())
@@ -160,7 +174,7 @@ def train_ddpm(config):
     val_times = []
     
     # Training Loop
-    for epoch in range(1, config.EPOCHS_DDPM + 1):
+    for epoch in range(start_epoch, config.EPOCHS_DDPM + 1):
         epoch_start = time.time()
         
         model.train()
@@ -221,7 +235,7 @@ def train_ddpm(config):
         if epoch in sample_epochs:
             model.eval()
             with torch.no_grad():
-                print(f"\n   🖼️  Generating 1 sample with detailed timing...")
+                print(f"\n   🖼️  Generating 16 sample with detailed timing...")
                 samples, timing_info = sample_ddpm_with_timing(
                     model, 
                     batch_size=16,
@@ -235,11 +249,10 @@ def train_ddpm(config):
                 print(f"      Forward passes (1000):   {timing_info['avg_forward_pass'] * 1000:.2f}s")
                 
                 est_500_images = timing_info['total_time'] * 500
-                print(f"      Est. time for 500 images: {est_500_images/60:.1f} minutes")
-                print(f"      Est. time for 500 images: {est_500_images/3600:.2f} hours\n")
+                print(f"      Est. time for 500 images during evaluation: {est_500_images/60:.1f} minutes")
                 
                 sample_filename = os.path.join(sample_dir, f"epoch_{epoch:03d}.png")
-                save_image_grid(samples, sample_filename, nrow=1)
+                save_image_grid(samples, sample_filename, nrow=4)
                 print(f"   📸 Sample saved: {sample_filename}\n")
         
         # Save checkpoint
