@@ -64,7 +64,7 @@ def vae_loss_function(x_recon, x, mu, logvar, beta):
     batch_size = x.size(0)
     
     # Reconstruction Loss (MSE) - normalized by batch
-    recon_loss = F.mse_loss(x_recon, x, reduction='sum') / batch_size
+    recon_loss = F.binary_cross_entropy(x_recon, x, reduction='sum') / batch_size
     
     # KL Divergence - normalized by batch
     kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp()) / batch_size
