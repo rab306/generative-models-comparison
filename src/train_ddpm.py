@@ -16,57 +16,72 @@ from models import UNet, DDPM
 
 @torch.no_grad()
 def sample_ddpm_with_timing(model, fixed_noise=None, batch_size=16, device='cuda'):
-    
+    timing_info = {
+        'total_time': 0,
+        'forward_passes': [],
+        'denoise_steps': [],
+        'timesteps': model.timesteps,
+        'avg_forward_pass': 0,
+        'avg_denoise_step': 0,
+    }
+
     if fixed_noise is not None:
         x = fixed_noise.clone()
     else:
         x = torch.randn(batch_size, 3, 32, 32, device=device)
-    
-    for t in reversed(range(model.timesteps)):
+
+    total_start = time.time()
+
+    for step_idx, t in enumerate(reversed(range(model.timesteps))):
         t_tensor = torch.full((x.shape[0],), t, device=device, dtype=torch.long)
-        
-        # Predict noise
+
+        # Forward pass
+        step_start = time.time()
         noise_pred = model.denoise(x, t_tensor)
-        
-        # ✅ Index buffers directly — they're already on the right device
-        # and are 1D tensors, so [t] gives a scalar tensor
-        alpha            = model.alphas[t]
-        alpha_bar        = model.alpha_bars[t]
-        beta             = model.betas[t]
-        
-        # Reshape for broadcasting
+        timing_info['forward_passes'].append(time.time() - step_start)
+
+        denoise_start = time.time()
+
+        alpha     = model.alphas[t]
+        alpha_bar = model.alpha_bars[t]
+        beta      = model.betas[t]
+
         def bc(v): return v.view(1, 1, 1, 1)
-        
-        # Compute predicted x_0 first — more numerically stable
-        # x_0_pred = (x_t - sqrt(1 - alpha_bar) * noise_pred) / sqrt(alpha_bar)
-        sqrt_alpha_bar         = torch.sqrt(alpha_bar)
-        sqrt_one_minus_alpha_bar = torch.sqrt(1 - alpha_bar)
-        
-        # ✅ Reconstruct x_0 from the noise prediction
-        x0_pred = (x - bc(sqrt_one_minus_alpha_bar) * noise_pred) / bc(sqrt_alpha_bar)
-        x0_pred = x0_pred.clamp(-1, 1)  # ✅ Clip to valid range — critical!
-        
+
+        # Reconstruct x_0, then clamp — this is the fix
+        x0_pred = (x - bc(torch.sqrt(1 - alpha_bar)) * noise_pred) / bc(torch.sqrt(alpha_bar))
+        x0_pred = x0_pred.clamp(-1, 1)
+
         if t > 0:
             alpha_bar_prev = model.alpha_bars[t - 1]
-            
-            # Posterior mean coefficients (from DDPM paper eq. 7)
-            coeff1 = torch.sqrt(alpha_bar_prev) * beta / (1 - alpha_bar)
-            coeff2 = torch.sqrt(alpha) * (1 - alpha_bar_prev) / (1 - alpha_bar)
-            
-            x_mean = bc(coeff1) * x0_pred + bc(coeff2) * x
-            
+
+            # Posterior mean (DDPM paper eq. 7)
+            coeff1 = bc(torch.sqrt(alpha_bar_prev) * beta / (1 - alpha_bar))
+            coeff2 = bc(torch.sqrt(alpha) * (1 - alpha_bar_prev) / (1 - alpha_bar))
+            x_mean = coeff1 * x0_pred + coeff2 * x
+
             # Posterior variance
             beta_tilde = (1 - alpha_bar_prev) / (1 - alpha_bar) * beta
-            
             x = x_mean + torch.sqrt(bc(beta_tilde)) * torch.randn_like(x)
         else:
-            # t=0: just return the mean, no noise
-            alpha_bar_prev = torch.tensor(1.0, device=device)
-            coeff1 = torch.sqrt(alpha_bar_prev) * beta / (1 - alpha_bar)
-            coeff2 = torch.sqrt(alpha) * (1 - alpha_bar_prev) / (1 - alpha_bar)
-            x = bc(coeff1) * x0_pred + bc(coeff2) * x
-    
-    return x
+            x = x0_pred  # t=0: just return the cleaned prediction directly
+
+        timing_info['denoise_steps'].append(time.time() - denoise_start)
+
+        if (step_idx + 1) % 100 == 0:
+            avg_forward = sum(timing_info['forward_passes'][-100:]) / 100
+            print(f"      Step {step_idx + 1}/{model.timesteps} - Forward: {avg_forward*1000:.2f}ms")
+
+    total_time = time.time() - total_start
+    timing_info['total_time'] = total_time
+    timing_info['avg_forward_pass'] = sum(timing_info['forward_passes']) / len(timing_info['forward_passes'])
+    timing_info['avg_denoise_step'] = sum(timing_info['denoise_steps']) / len(timing_info['denoise_steps'])
+
+    print(f"\n   ✅ Sampling complete: {total_time:.2f}s total")
+    print(f"   📊 Avg forward pass: {timing_info['avg_forward_pass']*1000:.2f}ms")
+    print(f"   📊 Avg denoise step: {timing_info['avg_denoise_step']*1000:.2f}ms")
+
+    return x, timing_info
 
 
 def train_ddpm(config):
