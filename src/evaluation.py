@@ -40,11 +40,24 @@ config = get_config()
 # ============================================================================
 
 def find_latest_run(model_type):
-    """Find latest training run for given model type"""
-    runs = glob.glob(f'results/{model_type}_run_*')
-    if not runs:
-        raise Exception(f"No {model_type.upper()} runs found in results/")
-    return max(runs, key=os.path.getctime)
+    """Find latest run directory for given model type."""
+    possible_paths = [
+        f'results/{model_type}_run*',
+        f'/kaggle/working/generative-models-comparison/results/{model_type}_run*',
+        os.path.expanduser(f'~/results/{model_type}_run*'),
+    ]
+    
+    for pattern in possible_paths:
+        runs = glob.glob(pattern)
+        if runs:
+            print(f"✅ Found {model_type.upper()} runs in: {pattern}")
+            return max(runs, key=os.path.getctime)
+    
+    print(f"❌ No {model_type.upper()} training runs found in any of:")
+    for p in possible_paths:
+        print(f"   - {p}")
+    return None
+
 
 
 def get_real_images(n_samples=2000, normalize_to_minus_one=False):
