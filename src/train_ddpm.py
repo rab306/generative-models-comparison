@@ -106,7 +106,7 @@ def train_ddpm(config):
     
     # Setup Directories
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir = os.path.join(config.RESULTS_DIR, f"run_ddpm_{timestamp}")
+    run_dir = os.path.join(config.RESULTS_DIR, f"ddpm_run{timestamp}")
     checkpoint_dir = os.path.join(run_dir, "checkpoints")
     sample_dir = os.path.join(run_dir, "samples")
     os.makedirs(checkpoint_dir, exist_ok=True)
