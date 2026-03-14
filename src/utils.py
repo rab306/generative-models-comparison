@@ -8,7 +8,6 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
 
-# ✅ Remove config import - pass values as parameters instead
 
 def set_seed(seed):
     """Set all random seeds for reproducibility"""

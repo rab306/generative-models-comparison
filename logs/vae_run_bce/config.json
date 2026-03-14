@@ -1,0 +1,10 @@
+{
+    "BASE_DIR": "/kaggle/working/generative-models-comparison",
+    "CHECKPOINT_DIR": "/kaggle/working/generative-models-comparison/checkpoints",
+    "LOG_DIR": "/kaggle/working/generative-models-comparison/logs",
+    "RESULTS_DIR": "/kaggle/working/generative-models-comparison/results",
+    "SAMPLE_DIR": "/kaggle/working/generative-models-comparison/results/samples",
+    "VAE_BETA": 1.0,
+    "VAE_LATENT_DIM": 64,
+    "EPOCHS_VAE": 100
+}

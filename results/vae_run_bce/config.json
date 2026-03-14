@@ -1,0 +1,11 @@
+{
+    "BASE_DIR": "/mnt/data1/my work/CyShield-assignment-task",
+    "CHECKPOINT_DIR": "/mnt/data1/my work/CyShield-assignment-task/checkpoints",
+    "LOG_DIR": "/mnt/data1/my work/CyShield-assignment-task/logs",
+    "RESULTS_DIR": "/mnt/data1/my work/CyShield-assignment-task/results",
+    "SAMPLE_DIR": "/mnt/data1/my work/CyShield-assignment-task/results/samples",
+    "EPOCHS_VAE": 1,
+    "EPOCHS_DDPM": 1,
+    "NUM_VISUALIZE_SAMPLES": 4,
+    "SAMPLE_INTERVAL": 1
+}

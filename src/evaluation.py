@@ -1,11 +1,6 @@
 """
-Universal Quantitative Evaluation Script for VAE and DDPM
+Quantitative Evaluation Script for VAE and DDPM
 Computes FID and Inception Score for either model.
-
-Usage:
-    python evaluate.py --model vae
-    python evaluate.py --model ddpm
-    python evaluate.py --model both
 """
 
 import torch
@@ -35,9 +30,7 @@ from utils import get_cifar10_loaders
 config = get_config()
 
 
-# ============================================================================
 # UTILITY FUNCTIONS
-# ============================================================================
 
 def find_latest_run(model_type):
     """Find latest run directory for given model type."""
@@ -116,9 +109,7 @@ def compute_is(generated_images):
     return is_mean.item(), is_std.item()
 
 
-# ============================================================================
 # VAE EVALUATION
-# ============================================================================
 
 def load_best_vae_model(run_dir):
     """Load best VAE model from checkpoint"""
@@ -211,9 +202,7 @@ def evaluate_vae(run_dir):
     }
 
 
-# ============================================================================
-# DDPM EVALUATION
-# ============================================================================
+# DDPM EVALUATION==
 
 def load_best_ddpm_model(run_dir):
     """Load best DDPM model from checkpoint"""
@@ -282,14 +271,14 @@ def sample_ddpm(model, n_samples=500, batch_size=16):
             
             def bc(v): return v.view(1, 1, 1, 1)
             
-            # ✅ Reconstruct x_0 with clipping (the fix!)
+            # ✅ Reconstruct x_0 with clipping
             x0_pred = (x - bc(torch.sqrt(1 - alpha_bar)) * noise_pred) / bc(torch.sqrt(alpha_bar))
-            x0_pred = x0_pred.clamp(-1, 1)  # CRITICAL!
+            x0_pred = x0_pred.clamp(-1, 1)
             
             if t > 0:
                 alpha_bar_prev = model.alpha_bars[t - 1]
                 
-                # Posterior mean (DDPM paper eq. 7)
+                # Posterior mean
                 coeff1 = bc(torch.sqrt(alpha_bar_prev) * beta / (1 - alpha_bar))
                 coeff2 = bc(torch.sqrt(alpha) * (1 - alpha_bar_prev) / (1 - alpha_bar))
                 x_mean = coeff1 * x0_pred + coeff2 * x
@@ -320,7 +309,6 @@ def evaluate_ddpm(run_dir):
     print(f"  ✅ Loaded {len(real_images)} real images")
     
     print("\n🎨 Generating DDPM samples...")
-    print("   (This takes ~30 minutes, please be patient...)")
     start_time = time.time()
     ddpm_samples = sample_ddpm(ddpm_model, n_samples=500)
     elapsed = time.time() - start_time
@@ -360,9 +348,7 @@ def evaluate_ddpm(run_dir):
     }
 
 
-# ============================================================================
 # COMPARISON
-# ============================================================================
 
 def compare_models(vae_results, ddpm_results):
     """Compare VAE and DDPM results"""

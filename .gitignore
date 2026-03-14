@@ -7,8 +7,8 @@ venv/
 
 # Data & Results
 data/
-results/
 *.pth
+*.odt
 *.pt
 *.ipynb_checkpoints
 

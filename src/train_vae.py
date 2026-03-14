@@ -6,14 +6,12 @@ import os
 from datetime import datetime
 from tqdm import tqdm
 
-# ✅ Use relative imports within the src package
 from config import get_config, get_argparser
 from utils import get_cifar10_loaders, save_image_grid, set_seed
 
 
 def train_vae(config):
     """Train VAE with given configuration."""
-    # 🔴 SET SEEDS FIRST, before ANY randomness (data loaders, model init, etc.)
     torch.manual_seed(config.RANDOM_SEED)
     torch.cuda.manual_seed(config.RANDOM_SEED)
     torch.cuda.manual_seed_all(config.RANDOM_SEED)
@@ -34,7 +32,6 @@ def train_vae(config):
     print(f"   Num Workers:     {config.NUM_WORKERS}")
     print(f"{'='*60}\n")
     
-    # ✅ Import models with relative import
     from models import VAE, vae_loss_function
     
     # 1. Setup Directories
@@ -191,7 +188,7 @@ def train_vae(config):
                 val_losses[epoch]
             ])
 
-    # Also save as JSON for backup
+    # save as JSON for backup
     json_file = os.path.join(run_dir, "loss_history.json")
     with open(json_file, 'w') as f:
         json.dump({

@@ -48,14 +48,14 @@ def sample_ddpm_with_timing(model, fixed_noise=None, batch_size=16, device='cuda
 
         def bc(v): return v.view(1, 1, 1, 1)
 
-        # Reconstruct x_0, then clamp — this is the fix
+        # Reconstruct x_0, then clip to [-1, 1]
         x0_pred = (x - bc(torch.sqrt(1 - alpha_bar)) * noise_pred) / bc(torch.sqrt(alpha_bar))
         x0_pred = x0_pred.clamp(-1, 1)
 
         if t > 0:
             alpha_bar_prev = model.alpha_bars[t - 1]
 
-            # Posterior mean (DDPM paper eq. 7)
+            # Posterior mean
             coeff1 = bc(torch.sqrt(alpha_bar_prev) * beta / (1 - alpha_bar))
             coeff2 = bc(torch.sqrt(alpha) * (1 - alpha_bar_prev) / (1 - alpha_bar))
             x_mean = coeff1 * x0_pred + coeff2 * x
@@ -64,7 +64,7 @@ def sample_ddpm_with_timing(model, fixed_noise=None, batch_size=16, device='cuda
             beta_tilde = (1 - alpha_bar_prev) / (1 - alpha_bar) * beta
             x = x_mean + torch.sqrt(bc(beta_tilde)) * torch.randn_like(x)
         else:
-            x = x0_pred  # t=0: just return the cleaned prediction directly
+            x = x0_pred
 
         timing_info['denoise_steps'].append(time.time() - denoise_start)
 
@@ -172,7 +172,7 @@ def train_ddpm(config):
     epoch_times = []
     val_times = []
     
-    # ✅ Create fixed noise for consistent sampling across epochs
+    # Create fixed noise for consistent sampling across epochs
     fixed_noise = torch.randn(16, 3, 32, 32, device=config.DEVICE)
     print(f"\n   🎲 Fixed noise created for consistent grid sampling\n")
 
@@ -201,7 +201,7 @@ def train_ddpm(config):
         avg_train_loss = loss_epoch / len(train_loader)
         train_losses.append(avg_train_loss)
         
-        # ✅ VALIDATION: Compute loss on entire test set
+        # VALIDATION: Compute loss on entire test set
         model.eval()
         val_loss = 0
         val_start = time.time()
@@ -240,10 +240,10 @@ def train_ddpm(config):
             with torch.no_grad():
                 torch.manual_seed(42)
                 print(f"\n   🖼️  Generating 16 samples (FIXED NOISE) with detailed timing...")
-                # ✅ Pass fixed_noise to use same grid across all epochs
+                # Pass fixed_noise to use same grid across all epochs
                 samples, timing_info = sample_ddpm_with_timing(
                     model, 
-                    fixed_noise=fixed_noise,  # ← Use fixed noise
+                    fixed_noise=fixed_noise,
                     device=config.DEVICE
                 )
                 
@@ -252,14 +252,14 @@ def train_ddpm(config):
                 print(f"      Avg forward pass:        {timing_info['avg_forward_pass']*1000:.2f}ms")
                 print(f"      Avg denoise step:        {timing_info['avg_denoise_step']*1000:.2f}ms")
                 
-                est_500_images = timing_info['total_time'] * 500 / 16  # Scale from 16 to 500
+                est_500_images = timing_info['total_time'] * 500 / 16
                 print(f"      Est. time for 500 images: {est_500_images/60:.1f} minutes")
                 print(f"      Est. time for 500 images: {est_500_images/3600:.2f} hours\n")
                 
                 print(f"samples min: {samples.min():.3f}, max: {samples.max():.3f}, mean: {samples.mean():.3f}")
 
                 sample_filename = os.path.join(sample_dir, f"epoch_{epoch:03d}.png")
-                save_image_grid(samples, sample_filename, nrow=4)  # ✅ 4x4 grid for 16 images
+                save_image_grid(samples, sample_filename, nrow=4)
                 print(f"   📸 Sample saved: {sample_filename}\n")
         
         # Save checkpoint

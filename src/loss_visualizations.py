@@ -1,11 +1,6 @@
 """
 Universal loss visualization script for VAE and DDPM training.
 Shows plots in console and saves them.
-
-Usage:
-    python visualize_losses.py --model vae
-    python visualize_losses.py --model ddpm
-    python visualize_losses.py --model both
 """
 
 import pandas as pd

@@ -63,10 +63,10 @@ def vae_loss_function(x_recon, x, mu, logvar, beta):
     """
     batch_size = x.size(0)
     
-    # Reconstruction Loss (MSE) - normalized by batch
+    # Reconstruction Loss (MSE)
     recon_loss = F.binary_cross_entropy(x_recon, x, reduction='sum') / batch_size
     
-    # KL Divergence - normalized by batch
+    # KL Divergence
     kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp()) / batch_size
     
     total_loss = recon_loss + beta * kl_loss
@@ -94,7 +94,7 @@ class TimeEmbedding(nn.Module):
         
         # Concatenate sin and cos
         embeddings = torch.cat([torch.sin(embeddings), torch.cos(embeddings)], dim=-1)
-        return embeddings  # Shape: (batch_size, dim)
+        return embeddings
 
 
 class ResNetBlock(nn.Module):
@@ -119,8 +119,6 @@ class ResNetBlock(nn.Module):
         self.skip = nn.Conv2d(in_channels, out_channels, 1) if in_channels != out_channels else nn.Identity()
         
     def forward(self, x, t_emb):
-        # x shape: (batch, in_channels, h, w)
-        # t_emb shape: (batch, time_dim)
         
         # First block
         h = self.norm1(x)
@@ -129,7 +127,7 @@ class ResNetBlock(nn.Module):
         
         # Add time embedding
         t = self.time_mlp(F.silu(t_emb))
-        t = t[:, :, None, None]  # Shape: (batch, out_channels, 1, 1)
+        t = t[:, :, None, None]
         h = h + t
         
         # Second block
@@ -207,10 +205,10 @@ class DownBlock(nn.Module):
         h = self.resnet(x, t_emb)
         h = self.attention(h)
         
-        # CRITICAL: Save skip BEFORE downsampling
+        # Save skip BEFORE downsampling
         skip = h
         
-        # Then downsample
+        # downsample
         h = self.downsample(h)
         
         return h, skip
@@ -233,7 +231,6 @@ class UpBlock(nn.Module):
     def forward(self, x, t_emb, skip):
         # x shape: (batch, in_channels, h, w)
         # skip shape: (batch, out_channels, 2h, 2w) from corresponding down block
-        
         h = self.upsample(x)
         
         # Concatenate with skip connection
@@ -308,9 +305,7 @@ class UNet(nn.Module):
         )
         
     def forward(self, x, t):
-        # x shape: (batch, in_channels, h, w)
-        # t shape: (batch,) - timesteps
-        
+
         # Time embedding
         t_emb = self.time_embed(t)
         t_emb = self.time_mlp(t_emb)
@@ -321,7 +316,7 @@ class UNet(nn.Module):
         # Store skip connections for upsampling
         skips = []
         
-        # Down blocks - CORRECTED: get both h and skip
+        # Down blocks
         for down in self.downs:
             h, skip = down(h, t_emb)
             skips.append(skip)
@@ -363,7 +358,7 @@ class DDPM(nn.Module):
         
         # Create noise schedule
         if schedule == 'cosine':
-            # Cosine annealing schedule from Improved DDPM paper
+            # Cosine annealing scheduler
             s = 0.008
             steps = torch.arange(timesteps + 1, dtype=torch.float32) / timesteps
             alpha_bar = torch.cos(((steps + s) / (1 + s)) * (torch.pi / 2)) ** 2
@@ -373,10 +368,9 @@ class DDPM(nn.Module):
             # Linear schedule (fallback)
             betas = torch.linspace(beta_start, beta_end, timesteps)
         
-        # Register as buffers for proper device handling
+        # Register as buffers
         self.register_buffer('betas', betas)
         
-        # Pre-calculate useful quantities for efficiency
         alphas = 1 - betas
         self.register_buffer('alphas', alphas)
         
